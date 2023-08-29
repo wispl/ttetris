@@ -1,5 +1,9 @@
+SOURCES := main.c tetris.c tetris.h
 tetris:
-	cc main.c tetris.c tetris.h -o tetris -lncurses
+	cc $(SOURCES) $(CFLAGS) -lncurses -o $@ 
 
 clean:
 	rm tetris
+
+check: $(SOURCES)
+	clang-tidy $(SOURCES) -checks=-*,clang-analyzer-*,-clang-analyzer-cplusplus*
