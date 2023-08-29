@@ -321,9 +321,9 @@ void game_harddrop_tetrimino(game *game)
 	game_place_tetrimino(game);
 }
 
-enum tetrimino_type game_get_preview(game *game, int preview)
+enum tetrimino_type game_get_preview(game *game, int index)
 {
-	return game->bag[(game->bag_index + preview) % BAGSIZE];
+	return game->bag[(game->bag_index + index) % BAGSIZE];
 }
 
 void game_tick(game *game, int frames)
@@ -332,7 +332,7 @@ void game_tick(game *game, int frames)
 	game->g += gravity * (float)frames;
 
 	/* once g is grater than 1, apply gravity */
-	if (game->g > 1.0f) {
+	if (game->g > 1.0F) {
 		game->g = 0;
 
 		if (game_check_tetrimino(game, 0, 1)) {
@@ -369,7 +369,7 @@ game *game_create()
 
 	game->hold = EMPTY;
 	game->has_held = false;
-	game->g = 0.0f;
+	game->g = 0.0F;
 	game->bag_index = 0;
 	for (int y = 0; y < MAX_ROW; ++y) {
 		for (int x = 0; x < MAX_COL; ++x) {

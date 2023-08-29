@@ -28,8 +28,8 @@ extern const enum tetrimino_type ROTATIONS[7][4][4][2];
 struct tetrimino {
 	enum tetrimino_type type;
 	int rotation;
-	float y;
-	float x;
+	int y;
+	int x;
 };
 
 typedef struct {
@@ -66,7 +66,7 @@ void game_tick(game *game, int frames);
 /**
  * @brief Gets the piece type at the given index
  *
- * @param index to preview, (between 0 and MAX_PREVIEW)
+ * @param index Index to preview, (between 0 and MAX_PREVIEW)
  * @return tetrimino_type of the preview
  */
 enum tetrimino_type game_get_preview(game *game, int index);
@@ -79,7 +79,7 @@ void game_harddrop_tetrimino(game *game);
 /**
  * @brief Move the tetrimino with the given offsets if the movement is valid
  */
-void game_move_tetrimino(game *game, int offset_x, int offset_y);
+void game_move_tetrimino(game *game, int x_offset, int y_offset);
 
 /**
  * @brief Hold the tetrimino, can only be used once per piece
