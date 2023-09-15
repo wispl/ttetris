@@ -6,7 +6,13 @@
 #include <time.h>
 
 #define BORDER_WIDTH 1
-#define CELL_WIDTH 2
+#define CELL_WIDTH   2
+
+#define GRID_HEIGHT   MAX_ROW + 2 * BORDER_WIDTH
+#define GRID_WIDTH    (MAX_COL + BORDER_WIDTH) * CELL_WIDTH
+
+#define BOX_WIDTH     4 * CELL_WIDTH + 2 * BORDER_WIDTH
+#define BOX_HEIGHT    3 + 2 * BORDER_WIDTH
 
 /* Rendering logic is here, for game logic see tetris.c */
 void enable_color();
@@ -40,20 +46,20 @@ int main(void)
 
 	bool running = true;
 	game *game = game_create();
-	WINDOW *grid = window_create(MAX_ROW + 2 * BORDER_WIDTH,
-				     (MAX_COL + BORDER_WIDTH) * CELL_WIDTH,
-				     (LINES - MAX_ROW) / 2,
-				     (COLS / 2) - MAX_COL);
+	WINDOW *grid = window_create(GRID_HEIGHT, 
+								 GRID_WIDTH, 
+								 (LINES - MAX_ROW) / 2, 
+								 (COLS / 2) - MAX_COL);
 
-	WINDOW *preview = window_create(3 * MAX_PREVIEW + 2 * BORDER_WIDTH,
-					4 * CELL_WIDTH + 2 * BORDER_WIDTH,
-					(LINES - MAX_ROW) / 2,
-					(COLS / 2) + MAX_COL + 5);
+	WINDOW *preview = window_create(MAX_PREVIEW * BOX_HEIGHT,
+									BOX_WIDTH,
+									(LINES - MAX_ROW) / 2,
+									(COLS / 2) + MAX_COL + 5);
 
-	WINDOW *hold = window_create(3 + 2 * BORDER_WIDTH,
-				     4 * CELL_WIDTH + 2 * BORDER_WIDTH,
-				     (LINES - MAX_ROW) / 2,
-				     (COLS / 2) - MAX_COL - 4 * CELL_WIDTH - 5);
+	WINDOW *hold = window_create(BOX_HEIGHT, 
+								 BOX_WIDTH, 
+								 (LINES - MAX_ROW) / 2, 
+								 (COLS / 2) - MAX_COL - 4 * CELL_WIDTH - 5);
 
 	struct timespec time_prev, time_now;
 	clock_gettime(CLOCK_REALTIME, &time_prev);
