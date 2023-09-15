@@ -149,19 +149,6 @@ static bool rotation_valid(int grid[MAX_ROW][MAX_COL],
 	return true;
 }
 
-/**
- * @brief Shifts every row above "start_row" down once
- */
-static void shift_rows(int grid[MAX_ROW][MAX_COL], int start_row)
-{
-	for (int r = start_row - 1; r >= 0; --r) {
-		for (int c = 0; c < MAX_COL; ++c) {
-			grid[r + 1][c] = grid[r][c];
-			grid[r][c] = EMPTY;
-		}
-	}
-}
-
 static void move_row(int grid[MAX_ROW][MAX_COL], int from, int to)
 {
 	for (int c = 0; c < MAX_COL; ++c) {
