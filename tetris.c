@@ -162,6 +162,20 @@ static void shift_rows(int grid[MAX_ROW][MAX_COL], int start_row)
 	}
 }
 
+static void move_row(int grid[MAX_ROW][MAX_COL], int from, int to)
+{
+	for (int c = 0; c < MAX_COL; ++c) {
+		grid[to][c] = grid[from][c];
+		grid[from][c] = EMPTY;
+	}
+}
+
+static void clear_row(int grid[MAX_ROW][MAX_COL], int row)
+{
+	for (int c = 0; c < MAX_COL; ++c)
+		grid[row][c] = EMPTY;
+}
+
 /**
  * @brief Checks if the current held tetrimino and rotation is valid at the
  *        given offsets.
@@ -220,13 +234,23 @@ static void spawn_tetrimino(game *game, enum tetrimino_type type)
 /**
  * @brief Clear filled rows and shift all rows down
  */
-static void game_clear_rows(game *game)
+static void game_clear_rows(game *game, int row)
 {
-	for (int row = MAX_ROW - 1; row >= 0; --row) {
-		if (row_filled(game->grid, row)) {
-			shift_rows(game->grid, row);
-			++row;
+	int head = row;
+	int tail = row;
+	while (!row_filled(game->grid, head)) {
+		--head;
+		--tail;
+	}
+
+	while (head > 0) {
+		if (row_filled(game->grid, head)) {
+			clear_row(game->grid, head);
+		} else {
+			move_row(game->grid, head, tail);
+			--tail;
 		}
+		--head;
 	}
 }
 
@@ -236,6 +260,8 @@ static void game_clear_rows(game *game)
 static void game_place_tetrimino(game *game)
 {
 	bool any_rows_filled = false;
+	int clear_begin = 0;
+
 	for (int n = 0; n < 4; n++) {
 		struct tetrimino tmino = game->tetrimino;
 		const int *offsets = ROTATIONS[tmino.type][tmino.rotation][n];
@@ -247,12 +273,14 @@ static void game_place_tetrimino(game *game)
 		 * there is no need to check each frame for filled rows */
 		if (row_filled(game->grid, y)) {
 			any_rows_filled = true;
+			if (y > clear_begin) {
+				clear_begin = y;
+			}
 		}
 	}
 
-	if (any_rows_filled) {
-		game_clear_rows(game);
-	}
+	if (any_rows_filled)
+		game_clear_rows(game, clear_begin);
 
 	/* get a new piece and allow the user to hold again */
 	game->has_held = false;
