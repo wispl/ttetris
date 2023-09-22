@@ -1,6 +1,10 @@
 #include "tetris.h"
 
+#ifdef __linux__
 #include <ncurses.h>
+#elif _WIN32
+#include <ncurses/ncurses.h>
+#endif
 
 #include <stdbool.h>
 #include <time.h>
