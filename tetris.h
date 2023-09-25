@@ -32,6 +32,7 @@ struct tetrimino {
 	int x;
 };
 
+/** Game structure, holds all revelant information related to a game */
 typedef struct {
 	int grid[MAX_ROW][MAX_COL];
 
@@ -47,9 +48,14 @@ typedef struct {
 	/* bag used for shuffling and replacing pieces in the main bag */
 	enum tetrimino_type shuffle_bag[BAGSIZE];
 
+	/* held piece*/
 	enum tetrimino_type hold;
-	/* whether the player has used hold already */
+	/* whether the player has held already */
 	bool has_held;
+
+	/* levels*/
+	int level;
+	int lines_cleared;
 } game;
 
 game *game_create();

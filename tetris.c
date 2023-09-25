@@ -218,13 +218,13 @@ static void spawn_tetrimino(game *game, enum tetrimino_type type)
 	}
 }
 
-/**
- * @brief Clear filled rows and shift all rows down
- */
+/** Clear filled rows, and does book-keeping (points and shifting rows)*/
 static void game_clear_rows(game *game, int row)
 {
 	int head = row;
 	int tail = row;
+
+	/* start at the first non-filled row */
 	while (!row_filled(game->grid, head)) {
 		--head;
 		--tail;
@@ -233,6 +233,10 @@ static void game_clear_rows(game *game, int row)
 	while (head > 0) {
 		if (row_filled(game->grid, head)) {
 			clear_row(game->grid, head);
+			++game->lines_cleared;
+
+			/* new level every 10 levels */
+			game->level = (game->lines_cleared / 10) + 1; 
 		} else {
 			move_row(game->grid, head, tail);
 			--tail;
@@ -386,6 +390,8 @@ game *game_create()
 	game->has_held = false;
 	game->g = 0.0F;
 	game->bag_index = 0;
+	game->level = 1;
+	game->lines_cleared = 0;
 	for (int y = 0; y < MAX_ROW; ++y) {
 		for (int x = 0; x < MAX_COL; ++x) {
 			game->grid[y][x] = EMPTY;

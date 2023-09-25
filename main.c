@@ -9,8 +9,8 @@
 #include <stdbool.h>
 #include <time.h>
 
-#define BORDER_WIDTH 1
-#define CELL_WIDTH   2
+#define BORDER_WIDTH  1
+#define CELL_WIDTH    2
 
 #define GRID_HEIGHT   MAX_ROW + 2 * BORDER_WIDTH
 #define GRID_WIDTH    (MAX_COL + BORDER_WIDTH) * CELL_WIDTH
@@ -32,6 +32,7 @@ void render_ghost_piece(WINDOW *w, game *game);
 void render_grid(WINDOW *w, game *game);
 void render_preview(WINDOW *w, game *game);
 void render_hold(WINDOW *w, game *game);
+void render_info(WINDOW *w, game *game);
 WINDOW *window_create(int lines, int cols, int begin_y, int begin_x);
 
 int main(void)
@@ -65,6 +66,11 @@ int main(void)
 								 (LINES - MAX_ROW) / 2, 
 								 (COLS / 2) - MAX_COL - 4 * CELL_WIDTH - 5);
 
+	WINDOW *info = window_create(BOX_HEIGHT, 
+								 20, 
+								 LINES / 2,
+								 (COLS / 2) - 30);
+
 	struct timespec time_prev, time_now;
 	clock_gettime(CLOCK_REALTIME, &time_prev);
 
@@ -77,6 +83,7 @@ int main(void)
 
 		render_grid(grid, game);
 		render_preview(preview, game);
+		render_info(info, game);
 
 		switch (getch()) {
 		case 'q':
@@ -218,6 +225,14 @@ void render_hold(WINDOW *w, game *game)
 	werase(w);
 	render_tetrimino(
 		w, game->hold, 0, 0, 0, get_tetrimino_color(game->hold));
+	box(w, 0, 0);
+	wrefresh(w);
+}
+
+void render_info(WINDOW *w, game *game) {
+	werase(w);
+	mvwprintw(w, 1, 1, "Lines cleared: %d", game->lines_cleared);
+	mvwprintw(w, 2, 1, "Level        : %d", game->level);
 	box(w, 0, 0);
 	wrefresh(w);
 }
