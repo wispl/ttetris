@@ -12,14 +12,18 @@
 #define BORDER_WIDTH  1
 #define CELL_WIDTH    2
 
+#define GRID_X        (COLS / 2) - (MAX_ROW / 2)
+#define GRID_Y        (LINES - MAX_ROW) / 2
 #define GRID_HEIGHT   MAX_ROW + 2 * BORDER_WIDTH
-#define GRID_WIDTH    (MAX_COL + BORDER_WIDTH) * CELL_WIDTH
+#define GRID_WIDTH    MAX_COL * CELL_WIDTH + BORDER_WIDTH * 2
 
+/* space needed to place tetrmino within a box */
 #define BOX_WIDTH     4 * CELL_WIDTH + 2 * BORDER_WIDTH
 #define BOX_HEIGHT    3 + 2 * BORDER_WIDTH
 
+
 /* Rendering logic is here, for game logic see tetris.c */
-void enable_color();
+void enable_colors();
 chtype get_tetrimino_color(enum tetrimino_type type);
 void render_tetrimino(WINDOW *w,
 		      enum tetrimino_type type,
@@ -27,8 +31,6 @@ void render_tetrimino(WINDOW *w,
 		      int y,
 		      int x,
 		      chtype c);
-void render_current_piece(WINDOW *w, game *game);
-void render_ghost_piece(WINDOW *w, game *game);
 void render_grid(WINDOW *w, game *game);
 void render_preview(WINDOW *w, game *game);
 void render_hold(WINDOW *w, game *game);
@@ -42,34 +44,24 @@ int main(void)
 	cbreak();
 	noecho();
 	curs_set(0);
+	keypad(stdscr, TRUE);
 
 	/* do not wait for input */
-	keypad(stdscr, TRUE);
 	nodelay(stdscr, TRUE);
 
-	enable_color();
+	enable_colors();
 
 	bool running = true;
 	game *game = game_create();
-	WINDOW *grid = window_create(GRID_HEIGHT, 
-								 GRID_WIDTH, 
-								 (LINES - MAX_ROW) / 2, 
-								 (COLS / 2) - MAX_COL);
 
-	WINDOW *preview = window_create(MAX_PREVIEW * BOX_HEIGHT,
-									BOX_WIDTH,
-									(LINES - MAX_ROW) / 2,
-									(COLS / 2) + MAX_COL + 5);
+	WINDOW *grid    = window_create(GRID_HEIGHT, GRID_WIDTH, GRID_Y, GRID_X);
+	WINDOW *preview = window_create(MAX_PREVIEW * BOX_HEIGHT, BOX_WIDTH,
+									GRID_Y, GRID_X + GRID_WIDTH + 3);
+	WINDOW *hold    = window_create(BOX_HEIGHT, BOX_WIDTH, 
+								    GRID_Y, GRID_X - BOX_WIDTH - 5);
 
-	WINDOW *hold = window_create(BOX_HEIGHT, 
-								 BOX_WIDTH, 
-								 (LINES - MAX_ROW) / 2, 
-								 (COLS / 2) - MAX_COL - 4 * CELL_WIDTH - 5);
-
-	WINDOW *info = window_create(BOX_HEIGHT, 
-								 20, 
-								 LINES / 2,
-								 (COLS / 2) - 30);
+	WINDOW *info    = window_create(BOX_HEIGHT, BOX_WIDTH, 
+								    LINES / 2, GRID_X - BOX_WIDTH - 5);
 
 	struct timespec time_prev, time_now;
 	clock_gettime(CLOCK_REALTIME, &time_prev);
@@ -120,10 +112,7 @@ int main(void)
 	return 0;
 }
 
-/**
- * @brief Enable colors
- */
-void enable_color()
+void enable_colors()
 {
 	/* TODO: add check if terminal supports color */
 	start_color();
@@ -167,26 +156,6 @@ void render_tetrimino(WINDOW *w,
 	}
 }
 
-void render_current_piece(WINDOW *w, game *game)
-{
-	render_tetrimino(w,
-			 game->tetrimino.type,
-			 game->tetrimino.rotation,
-			 game->tetrimino.y,
-			 game->tetrimino.x,
-			 get_tetrimino_color(game->tetrimino.type));
-}
-
-void render_ghost_piece(WINDOW *w, game *game)
-{
-	render_tetrimino(w,
-			 game->tetrimino.type,
-			 game->tetrimino.rotation,
-			 game_ghost_y(game),
-			 game->tetrimino.x,
-			 '/');
-}
-
 void render_grid(WINDOW *w, game *game)
 {
 	for (int y = 0; y < MAX_ROW; ++y) {
@@ -203,8 +172,23 @@ void render_grid(WINDOW *w, game *game)
 		}
 	}
 
-	render_ghost_piece(w, game);
-	render_current_piece(w, game);
+	/* Order is important, current piece should shadow the ghost piece */
+	/* Ghost piece*/
+	render_tetrimino(w,
+			 game->tetrimino.type,
+			 game->tetrimino.rotation,
+			 game_ghost_y(game),
+			 game->tetrimino.x,
+			 '/');
+
+	/* Current piece */
+	render_tetrimino(w,
+			 game->tetrimino.type,
+			 game->tetrimino.rotation,
+			 game->tetrimino.y,
+			 game->tetrimino.x,
+			 get_tetrimino_color(game->tetrimino.type));
+
 	box(w, 0, 0);
 	wrefresh(w);
 }
@@ -231,9 +215,8 @@ void render_hold(WINDOW *w, game *game)
 
 void render_info(WINDOW *w, game *game) {
 	werase(w);
-	mvwprintw(w, 1, 1, "Lines cleared: %d", game->lines_cleared);
-	mvwprintw(w, 2, 1, "Level        : %d", game->level);
-	box(w, 0, 0);
+	mvwprintw(w, 1, 1, "Lines: %d", game->lines_cleared);
+	mvwprintw(w, 2, 1, "Level: %d", game->level);
 	wrefresh(w);
 }
 
@@ -241,6 +224,5 @@ WINDOW
 *window_create(int lines, int cols, int begin_y, int begin_x)
 {
 	WINDOW *window = newwin(lines, cols, begin_y, begin_x);
-	box(window, 0, 0);
 	return window;
 }
