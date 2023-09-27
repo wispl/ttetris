@@ -224,32 +224,29 @@ static void game_clear_rows(game *game, int row)
 	}
 }
 
-/**
- * @brief Place the current held tetrimino onto the grid
- */
+/* Place the active tetrimino and check for and handle line clears */
 static void game_place_tetrimino(game *game)
 {
-	bool any_rows_filled = false;
+	/* Check for line clears and get the lowest row which was cleared */
+	bool rows_filled = false;
 	int clear_begin = 0;
 
-	for (int n = 0; n < 4; n++) {
-		struct tetrimino tmino = game->tetrimino;
-		const int *offsets = ROTATIONS[tmino.type][tmino.rotation][n];
-		int x = tmino.x + offsets[0];
-		int y = tmino.y + offsets[1];
-		game->grid[y][x] = tmino.type;
+	for (int n = 0; n < 4; ++n) {
+		enum tetrimino_type type = game->tetrimino.type;
+		const int *offsets = ROTATIONS[type][game->tetrimino.rotation][n];
+		int x = game->tetrimino.x + offsets[0];
+		int y = game->tetrimino.y + offsets[1];
+		game->grid[y][x] = type;
 
-		/* optimization: check if any rows are filled after placing,
-		 * there is no need to check each frame for filled rows */
+		/* A line clear can only be on the row of the four cells */
 		if (row_filled(game->grid, y)) {
-			any_rows_filled = true;
-			if (y > clear_begin) {
+			rows_filled = true;
+			if (y > clear_begin)
 				clear_begin = y;
-			}
 		}
 	}
 
-	if (any_rows_filled)
+	if (rows_filled)
 		game_clear_rows(game, clear_begin);
 
 	/* get a new piece and allow the user to hold again */
