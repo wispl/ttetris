@@ -129,26 +129,6 @@ static bool row_filled(int grid[MAX_ROW][MAX_COL], int row)
 	return true;
 }
 
-/**
- * @brief Checks if a tetrmino with the given rotation is valid at (x,y)
- *
- * @return true if rotation is invalid, false if invalid
- */
-static bool rotation_valid(int grid[MAX_ROW][MAX_COL],
-			   enum tetrimino_type type,
-			   int rotation,
-			   int x,
-			   int y)
-{
-	for (int n = 0; n < 4; n++) {
-		const int *offsets = ROTATIONS[type][rotation][n];
-		if (!block_valid(grid, x + offsets[0], y + offsets[1])) {
-			return false;
-		}
-	}
-	return true;
-}
-
 static void move_row(int grid[MAX_ROW][MAX_COL], int from, int to)
 {
 	for (int c = 0; c < MAX_COL; ++c) {
@@ -163,21 +143,20 @@ static void clear_row(int grid[MAX_ROW][MAX_COL], int row)
 		grid[row][c] = EMPTY;
 }
 
-/**
- * @brief Checks if the current held tetrimino and rotation is valid at the
- *        given offsets.
- *
- * @return true if valid, false if invalid
+/** Checks if the current held tetrimino 
+ *  is valid with the given rotation and offsets
  */
-static bool game_check_tetrimino(game *game, int x_offset, int y_offset)
+static bool game_tetrimino_valid(game* game, int rotation, int x_offset, int y_offset)
 {
-	return rotation_valid(game->grid,
-			      game->tetrimino.type,
-			      game->tetrimino.rotation,
-			      game->tetrimino.x + x_offset,
-			      game->tetrimino.y + y_offset);
+	for (int n = 0; n < 4; n++) {
+		const int *offsets = ROTATIONS[game->tetrimino.type][rotation][n];
+		if (!block_valid(game->grid,
+				 		 game->tetrimino.x + x_offset + offsets[0],
+				 		 game->tetrimino.y + y_offset + offsets[1]))
+			return false;
+	}
+	return true;
 }
-
 /**
  * @brief Gets the next tetrimino from the bag,
  * 	  the pieces are guranteed to be shuffled
@@ -281,7 +260,7 @@ static void game_place_tetrimino(game *game)
 void game_move_tetrimino(game *game, int x_offset, int y_offset)
 {
 	/* this is used for user controls so we check bounds */
-	if (game_check_tetrimino(game, x_offset, y_offset)) {
+	if (game_tetrimino_valid(game, game->tetrimino.rotation, x_offset, y_offset)) {
 		game->tetrimino.x += x_offset;
 		game->tetrimino.y += y_offset;
 	}
@@ -289,30 +268,20 @@ void game_move_tetrimino(game *game, int x_offset, int y_offset)
 
 void game_rotate_tetrimino(game *game, int rotate_by)
 {
-	struct tetrimino tmino = game->tetrimino;
 	/* wrap around 3, substitute for modulus when used on powers of 2 */
 	int rotation = (game->tetrimino.rotation + rotate_by) & 3;
-	if (rotation_valid(game->grid,
-			   game->tetrimino.type,
-			   rotation,
-			   game->tetrimino.x,
-			   game->tetrimino.y)) {
+	if (game_tetrimino_valid(game, rotation, 0, 0)) {
 		game->tetrimino.rotation = rotation;
 		return;
 	}
 
 	/* standard rotation failed, attempt kicktable rotations */
 	int direction = rotate_by < 0 ? 0 : 1;
-	bool is_I = tmino.type == I;
+	bool is_I = game->tetrimino.type == I;
 	for (int n = 0; n < 4; n++) {
-		const int *offset =
-			KICKTABLE[is_I][direction][tmino.rotation][n];
-		if (rotation_valid(game->grid,
-				   tmino.type,
-				   rotation,
-				   offset[0] + tmino.x,
-				   offset[1] + tmino.y)) {
-			/* once a rotation fits, use it and return */
+		const int *offset = KICKTABLE[is_I][direction][game->tetrimino.rotation][n];
+
+		if (game_tetrimino_valid(game, rotation, offset[0], offset[1])) {
 			game->tetrimino.rotation = rotation;
 			game->tetrimino.x += offset[0];
 			game->tetrimino.y += offset[1];
@@ -323,14 +292,11 @@ void game_rotate_tetrimino(game *game, int rotate_by)
 
 int game_ghost_y(game *game)
 {
-	int y = 1;
-	/* keep moving the current tetrimino down until it is invalid */
-	while (game_check_tetrimino(game, 0, y)) {
-		y++;
-	}
-	/* add the current tetrimino.y to convert from relative to absolute
-	 * subtract one since the check failed after adding one. */
-	return game->tetrimino.y + y - 1;
+	int y = 0;
+	while (game_tetrimino_valid(game, game->tetrimino.rotation, 0, y + 1))
+		++y;
+	/* add the current tetrimino.y to convert from relative to absolute */
+	return game->tetrimino.y + y;
 }
 
 void game_harddrop_tetrimino(game *game)
@@ -354,7 +320,7 @@ void game_tick(game *game, int frames)
 	if (game->g > 1.0F) {
 		game->g = 0;
 
-		if (game_check_tetrimino(game, 0, 1)) {
+		if (game_tetrimino_valid(game, game->tetrimino.rotation, 0, 1)) {
 			game->tetrimino.y += 1;
 		} else {
 			/* TODO: Add lock delay */
