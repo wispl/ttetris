@@ -3,10 +3,12 @@
 
 #include <stdbool.h>
 
-#define MAX_ROW 20
-#define MAX_COL 10
+/* grid dimensions */
+#define MAX_ROW     20
+#define MAX_COL     10
 
-#define BAGSIZE 7
+/* bag settings */
+#define BAGSIZE     7
 #define MAX_PREVIEW 5
 
 enum tetrimino_type { EMPTY = -1, I, J, L, O, S, T, Z };
@@ -20,11 +22,7 @@ extern const enum tetrimino_type ROTATIONS[7][4][4][2];
 /* 	up, right, down, left */
 /* }; */
 
-/**
- * @class tetrimino
- * @brief Representation of a tetrimino
- *
- */
+/* Representation of a tetrimino */
 struct tetrimino {
 	enum tetrimino_type type;
 	int rotation;
@@ -32,7 +30,7 @@ struct tetrimino {
 	int x;
 };
 
-/** Game structure, holds all revelant information related to a game */
+/* Game structure, holds all revelant information related to a game */
 typedef struct {
 	int grid[MAX_ROW][MAX_COL];
 
@@ -41,14 +39,14 @@ typedef struct {
 	/* when g is > 1, apply gravity */
 	float g;
 
-	/* these bags are ring buffers and used for future pieces */
+	/* these bags are ring buffers and used for future pieces and preview */
 	int bag_index;
 	/* main bag used for preview */
 	enum tetrimino_type bag[BAGSIZE];
 	/* bag used for shuffling and replacing pieces in the main bag */
 	enum tetrimino_type shuffle_bag[BAGSIZE];
 
-	/* held piece*/
+	/* held piece */
 	enum tetrimino_type hold;
 	/* whether the player has held already */
 	bool has_held;
@@ -59,7 +57,6 @@ typedef struct {
 } game;
 
 game *game_create();
-
 void game_destroy(game *game);
 
 /**

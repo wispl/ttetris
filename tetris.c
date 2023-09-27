@@ -52,17 +52,18 @@ const enum tetrimino_type ROTATIONS[7][4][4][2] = {
  * There are 4 test cases done in order and choosing them depends on:
  * the rotation you are rotating from and the rotation you are rotating to,
  * notated as follows (from)>>(two)
+ * 
+ * These are organized so you can find the right rotation using
+ * the current rotation of the tetrimino.
  */
 const int KICKTABLE[2][2][4][4][2] = {
 	/* mappings for "J L S Z T" */
-	/* these are organized so you can find the right rotation using
-	 * the current rotation of the tetrimino */
 	{ 
 		/* counterclockwise */
 		{{{ 1, 0}, { 1, -1}, {0,  2}, { 1,  2}},	// 0>>3
 		 {{ 1, 0}, { 1,  1}, {0, -2}, { 1, -2}},	// 1>>0
 		 {{-1, 0}, {-1, -1}, {0,  2}, {-1,  2}},	// 2>>1
-		 {{-1, 0}, {-1,  1}, {0, -2}, {-1, -2}}},       // 3>>2 
+		 {{-1, 0}, {-1,  1}, {0, -2}, {-1, -2}}},   // 3>>2 
 
 		/* clockwise */
 		{{{-1, 0}, {-1, -1}, {0,  2}, {-1,  2}},	// 0>>1
@@ -71,7 +72,7 @@ const int KICKTABLE[2][2][4][4][2] = {
 		 {{-1, 0}, {-1,  1}, {0, -2}, {-1, -2}}},  	// 3>>0
 		
 	},
-	/* kicktable mapping for "I" */
+	/* mapping for "I", "O" has no mapping */
 	{
 		/* counterclockwise */
 		{{{-1, 0}, { 2, 0}, {-1, -2}, { 2,  1}}, 	// 0>>3
@@ -90,9 +91,7 @@ const int KICKTABLE[2][2][4][4][2] = {
 /* TODO: add level based gravity */
 const float gravity = 0.01667;
 
-/**
- * @brief Shuffles the tetrimino bag in place (supports only BAGSIZE)
- */
+/* Shuffles the tetrimino bag in place (supports only BAGSIZE) */
 static void bag_shuffle(enum tetrimino_type bag[BAGSIZE])
 {
 	int j, tmp;
@@ -104,21 +103,13 @@ static void bag_shuffle(enum tetrimino_type bag[BAGSIZE])
 	}
 }
 
-/**
- * @brief Checks if a block is valid (in-bounds and on a free cell)
- *
- * @return true if valid, false if invalid
- */
+/* Check if a block is valid (in-bounds and on a free cell) */
 static inline bool block_valid(int grid[MAX_ROW][MAX_COL], int x, int y)
 {
 	return x >= 0 && x < MAX_COL && y < MAX_ROW && grid[y][x] == EMPTY;
 }
 
-/**
- * @brief Checks if a row is filled (No EMPTY blocks)
- *
- * @return true if row is filled, false if not filled
- */
+/* Check if a row is filled (No EMPTY blocks) */
 static bool row_filled(int grid[MAX_ROW][MAX_COL], int row)
 {
 	for (int n = 0; n < MAX_COL; ++n) {
@@ -143,12 +134,11 @@ static void clear_row(int grid[MAX_ROW][MAX_COL], int row)
 		grid[row][c] = EMPTY;
 }
 
-/** Checks if the current held tetrimino 
- *  is valid with the given rotation and offsets
- */
-static bool game_tetrimino_valid(game* game, int rotation, int x_offset, int y_offset)
+/* Check if the active tetrimino is valid at the given rotation and offset */
+static bool
+game_tetrimino_valid(game *game, int rotation, int x_offset, int y_offset)
 {
-	for (int n = 0; n < 4; n++) {
+	for (int n = 0; n < 4; ++n) {
 		const int *offsets = ROTATIONS[game->tetrimino.type][rotation][n];
 		if (!block_valid(game->grid,
 				 		 game->tetrimino.x + x_offset + offsets[0],
@@ -157,39 +147,33 @@ static bool game_tetrimino_valid(game* game, int rotation, int x_offset, int y_o
 	}
 	return true;
 }
-/**
- * @brief Gets the next tetrimino from the bag,
- * 	  the pieces are guranteed to be shuffled
- *
- * @return the tetrimino type of the next tetrimino
- */
+
+/* Get the next tetrimino from the bag and handles shuffling */
 static enum tetrimino_type game_next_tetrimino(game *game)
 {
-	/* store the piece, but replace its index with a shuffled piece */
+	/* store the piece, but replace its index with a shuffled piece, this
+	 * allows for previews near the end of the queue */
 	enum tetrimino_type type = game->bag[game->bag_index];
 	game->bag[game->bag_index] = game->shuffle_bag[game->bag_index];
 
-	/* exhausted both bags, shuffle the shuffle_bag */
-	/* a 7-bag system is used, which means every piece is shuffled in a
-	 * bag, guranteeing one piece of each type per bag */
-	if (game->bag_index == BAGSIZE - 1) {
+	/* shuffle bag is exhausted */
+	if (game->bag_index == BAGSIZE - 1)
+		/* a 7-bag system requires shuffling all 7 types in a bag */
 		bag_shuffle(game->shuffle_bag);
-	}
 
-	/* wrap around */
+	/* increment and wrap around */
 	game->bag_index = (game->bag_index + 1) % BAGSIZE;
 	return type;
 }
 
-/**
- * @brief Spawns a new tetrimino piece with the given type into the grid
- */
+/* Spawn a new tetrimino piece with the given type into the grid */
 static void spawn_tetrimino(game *game, enum tetrimino_type type)
 {
 	game->tetrimino.type = type;
 	game->tetrimino.rotation = 0;
 	game->tetrimino.y = 0;
 
+	/* O-piece has a different starting placement */
 	if (type == O) {
 		game->tetrimino.x = 4;
 	} else {
@@ -197,9 +181,13 @@ static void spawn_tetrimino(game *game, enum tetrimino_type type)
 	}
 }
 
-/** Clear filled rows, and does book-keeping (points and shifting rows)*/
+/* Clear filled rows, and does book-keeping (points and row shifting)
+ * To avoid shifting unchanged rows, only rows above the given row will be
+ * checked and shifted */
 static void game_clear_rows(game *game, int row)
 {
+	/* head will increment, removing filled rows and moving non-filled rows
+	 * to tail, the top of the stack */
 	int head = row;
 	int tail = row;
 
@@ -265,6 +253,7 @@ void game_move_tetrimino(game *game, int x_offset, int y_offset)
 
 void game_rotate_tetrimino(game *game, int rotate_by)
 {
+	/* O-piece will alway pass because its rotation cannot failed */
 	/* wrap around 3, substitute for modulus when used on powers of 2 */
 	int rotation = (game->tetrimino.rotation + rotate_by) & 3;
 	if (game_tetrimino_valid(game, rotation, 0, 0)) {
@@ -285,6 +274,8 @@ void game_rotate_tetrimino(game *game, int rotate_by)
 			return;
 		}
 	}
+
+	/* rotation failed, no change occurs */
 }
 
 int game_ghost_y(game *game)
