@@ -35,7 +35,6 @@ void render_grid(WINDOW *w, game *game);
 void render_preview(WINDOW *w, game *game);
 void render_hold(WINDOW *w, game *game);
 void render_info(WINDOW *w, game *game);
-WINDOW *window_create(int lines, int cols, int begin_y, int begin_x);
 
 int main(void)
 {
@@ -54,14 +53,13 @@ int main(void)
 	bool running = true;
 	game *game = game_create();
 
-	WINDOW *grid    = window_create(GRID_HEIGHT, GRID_WIDTH, GRID_Y, GRID_X);
-	WINDOW *preview = window_create(MAX_PREVIEW * BOX_HEIGHT, BOX_WIDTH,
-									GRID_Y, GRID_X + GRID_WIDTH + 3);
-	WINDOW *hold    = window_create(BOX_HEIGHT, BOX_WIDTH, 
-								    GRID_Y, GRID_X - BOX_WIDTH - 5);
-
-	WINDOW *info    = window_create(BOX_HEIGHT, BOX_WIDTH, 
-								    LINES / 2, GRID_X - BOX_WIDTH - 5);
+	WINDOW *grid    = newwin(GRID_HEIGHT, GRID_WIDTH, GRID_Y, GRID_X);
+	WINDOW *preview = newwin(MAX_PREVIEW * BOX_HEIGHT, BOX_WIDTH,
+							 GRID_Y, GRID_X + GRID_WIDTH + 3);
+	WINDOW *hold    = newwin(BOX_HEIGHT, BOX_WIDTH, 
+							 GRID_Y, GRID_X - BOX_WIDTH - 5);
+	WINDOW *info    = newwin(BOX_HEIGHT, BOX_WIDTH, 
+							 LINES / 2, GRID_X - BOX_WIDTH - 5);
 
 	struct timespec time_prev, time_now;
 	clock_gettime(CLOCK_REALTIME, &time_prev);
@@ -218,11 +216,4 @@ void render_info(WINDOW *w, game *game) {
 	mvwprintw(w, 1, 1, "Lines: %d", game->lines_cleared);
 	mvwprintw(w, 2, 1, "Level: %d", game->level);
 	wrefresh(w);
-}
-
-WINDOW
-*window_create(int lines, int cols, int begin_y, int begin_x)
-{
-	WINDOW *window = newwin(lines, cols, begin_y, begin_x);
-	return window;
 }
