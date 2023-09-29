@@ -65,11 +65,9 @@ int main(void)
 	clock_gettime(CLOCK_REALTIME, &time_prev);
 
 	while (running) {
-		/* get frames since last calculation */
 		clock_gettime(CLOCK_REALTIME, &time_now);
-		int frames = 1 / (time_now.tv_sec - time_prev.tv_sec) * 100;
+		game_update(game, time_now.tv_sec - time_prev.tv_sec);
 		time_prev = time_now;
-		game_tick(game, frames);
 
 		render_grid(grid, game);
 		render_preview(preview, game);

@@ -1,14 +1,11 @@
-/**
- * @file
- * @brief Tetris game logic
- */
+#include "tetris.h"
 
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <math.h>
 
-#include "tetris.h"
-
+ /*Tetris game logic */
 const enum tetrimino_type ROTATIONS[7][4][4][2] = {
 	[I] = {{{0, 1}, {1, 1}, {2, 1}, {3, 1}},
 	       {{2, 0}, {2, 1}, {2, 2}, {2, 3}},
@@ -88,9 +85,6 @@ const int KICKTABLE[2][2][4][4][2] = {
 		
 	}};
 
-/* TODO: add level based gravity */
-const float gravity = 0.01667;
-
 /* Shuffles the tetrimino bag in place (supports only BAGSIZE) */
 static void bag_shuffle(enum tetrimino_type bag[BAGSIZE])
 {
@@ -101,6 +95,12 @@ static void bag_shuffle(enum tetrimino_type bag[BAGSIZE])
 		bag[j] = bag[i];
 		bag[i] = tmp;
 	}
+}
+
+/* returns the time it takes for a tetrimino to move down one row */
+static inline float get_gravity_speed(int level)
+{
+	return pow((0.8 - ((level - 1) * 0.007)), (level - 1));
 }
 
 /* Check if a block is valid (in-bounds and on a free cell) */
@@ -173,6 +173,10 @@ static void spawn_tetrimino(game *game, enum tetrimino_type type)
 	game->tetrimino.rotation = 0;
 	game->tetrimino.y = 0;
 
+	/* reset time related settings for the next piece */
+	game->accumulator = 0.0f;
+	game->lock_delay = 0.0f;
+
 	/* O-piece has a different starting placement */
 	if (type == O) {
 		game->tetrimino.x = 4;
@@ -186,8 +190,8 @@ static void spawn_tetrimino(game *game, enum tetrimino_type type)
  * checked and shifted */
 static void game_clear_rows(game *game, int row)
 {
-	/* head will increment, removing filled rows and moving non-filled rows
-	 * to tail, the top of the stack */
+	/* head will move up the array, removing filled rows and moving
+	 * non-filled rows to the tail at the top of the stack */
 	int head = row;
 	int tail = row;
 
@@ -253,9 +257,10 @@ void game_move_tetrimino(game *game, int x_offset, int y_offset)
 
 void game_rotate_tetrimino(game *game, int rotate_by)
 {
-	/* O-piece will alway pass because its rotation cannot failed */
 	/* wrap around 3, substitute for modulus when used on powers of 2 */
 	int rotation = (game->tetrimino.rotation + rotate_by) & 3;
+
+	/* O-piece will alway pass because its rotation cannot failed */
 	if (game_tetrimino_valid(game, rotation, 0, 0)) {
 		game->tetrimino.rotation = rotation;
 		return;
@@ -299,20 +304,24 @@ enum tetrimino_type game_get_preview(game *game, int index)
 	return game->bag[(game->bag_index + index) % BAGSIZE];
 }
 
-void game_tick(game *game, int frames)
+void game_update(game *game, float dt)
 {
-	/* add gravity to g each frame */
-	game->g += gravity * (float)frames;
-
-	/* once g is grater than 1, apply gravity */
-	if (game->g > 1.0F) {
-		game->g = 0;
-
+	float gravity = get_gravity_speed(game->level);
+	game->accumulator += dt;
+	if (game->accumulator > gravity) {
+		game->accumulator -= gravity;
 		if (game_tetrimino_valid(game, game->tetrimino.rotation, 0, 1)) {
 			game->tetrimino.y += 1;
 		} else {
-			/* TODO: Add lock delay */
-			game_place_tetrimino(game);
+			/* lock delay for when a tetrimino cannot be moved and
+			 * must be placed. By default the delay is 0.5 seconds */
+			struct timespec now;
+			clock_gettime(CLOCK_REALTIME, &now);
+
+			if (game->lock_delay == 0.0f) 
+				game->lock_delay = now.tv_sec;
+			else if (game->lock_delay > LOCK_DELAY) 
+				game_place_tetrimino(game);
 		}
 	}
 }
@@ -342,7 +351,8 @@ game *game_create()
 
 	game->hold = EMPTY;
 	game->has_held = false;
-	game->g = 0.0F;
+	game->accumulator = 0.0F;
+	game->lock_delay = 0.0F;
 	game->bag_index = 0;
 	game->level = 1;
 	game->lines_cleared = 0;

@@ -11,6 +11,8 @@
 #define BAGSIZE     7
 #define MAX_PREVIEW 5
 
+#define LOCK_DELAY  0.5
+
 enum tetrimino_type { EMPTY = -1, I, J, L, O, S, T, Z };
 extern enum tetrimino_type type;
 
@@ -36,8 +38,11 @@ typedef struct {
 
 	/* current piece */
 	struct tetrimino tetrimino;
-	/* when g is > 1, apply gravity */
-	float g;
+
+	/* collected delta times used for updating physics */
+	float accumulator;
+	/* start of lock_delay */
+	float lock_delay;
 
 	/* these bags are ring buffers and used for future pieces and preview */
 	int bag_index;
@@ -59,12 +64,8 @@ typedef struct {
 game *game_create();
 void game_destroy(game *game);
 
-/**
- * @brief Runs gravity and checks
- *
- * @param frames number of frames passed since last check
- */
-void game_tick(game *game, int frames);
+/* Updates tetrimino according to gravity */
+void game_update(game *game, float dt);
 
 /**
  * @brief Gets the piece type at the given index
