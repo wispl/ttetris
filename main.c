@@ -51,14 +51,6 @@ int main(void)
 	bool running = true;
 	game *game = game_create();
 
-	// WINDOW *grid    = newwin(GRID_HEIGHT, GRID_WIDTH, GRID_Y, GRID_X);
-	// WINDOW *preview = newwin(MAX_PREVIEW * BOX_HEIGHT, BOX_WIDTH,
-	// 						 GRID_Y, GRID_X + GRID_WIDTH + 3);
-	// WINDOW *hold    = newwin(BOX_HEIGHT, BOX_WIDTH, 
-	// 						 GRID_Y, GRID_X - BOX_WIDTH - 5);
-	// WINDOW *info    = newwin(BOX_HEIGHT, BOX_WIDTH, 
-	// 						 LINES / 2, GRID_X - BOX_WIDTH - 5);
-
 	windows[GRID]    = newwin(GRID_HEIGHT, GRID_WIDTH, GRID_Y, GRID_X);
 	windows[PREVIEW] = newwin(MAX_PREVIEW * BOX_HEIGHT, BOX_WIDTH,
 							 GRID_Y, GRID_X + GRID_WIDTH + 3);
