@@ -21,16 +21,18 @@
 #define BOX_WIDTH     4 * CELL_WIDTH + 2 * BORDER_WIDTH
 #define BOX_HEIGHT    3 + 2 * BORDER_WIDTH
 
-
 /* Rendering logic is here, for game logic see tetris.c */
 void enable_colors();
 chtype tetrimino_block(enum tetrimino_type type);
 void render_tetrimino(WINDOW *w, enum tetrimino_type type, int y_offset);
 void render_active_tetrimino(WINDOW *w, game *game, bool ghost);
-void render_grid(WINDOW *w, game *game);
-void render_preview(WINDOW *w, game *game);
-void render_hold(WINDOW *w, game *game);
-void render_info(WINDOW *w, game *game);
+void render_grid(game *game);
+void render_preview(game *game);
+void render_hold(game *game);
+void render_info(game *game);
+
+enum window_type { GRID, PREVIEW, HOLD, INFO, NWINDOWS };
+WINDOW* windows[NWINDOWS];
 
 int main(void)
 {
@@ -49,13 +51,22 @@ int main(void)
 	bool running = true;
 	game *game = game_create();
 
-	WINDOW *grid    = newwin(GRID_HEIGHT, GRID_WIDTH, GRID_Y, GRID_X);
-	WINDOW *preview = newwin(MAX_PREVIEW * BOX_HEIGHT, BOX_WIDTH,
+	// WINDOW *grid    = newwin(GRID_HEIGHT, GRID_WIDTH, GRID_Y, GRID_X);
+	// WINDOW *preview = newwin(MAX_PREVIEW * BOX_HEIGHT, BOX_WIDTH,
+	// 						 GRID_Y, GRID_X + GRID_WIDTH + 3);
+	// WINDOW *hold    = newwin(BOX_HEIGHT, BOX_WIDTH, 
+	// 						 GRID_Y, GRID_X - BOX_WIDTH - 5);
+	// WINDOW *info    = newwin(BOX_HEIGHT, BOX_WIDTH, 
+	// 						 LINES / 2, GRID_X - BOX_WIDTH - 5);
+
+	windows[GRID]    = newwin(GRID_HEIGHT, GRID_WIDTH, GRID_Y, GRID_X);
+	windows[PREVIEW] = newwin(MAX_PREVIEW * BOX_HEIGHT, BOX_WIDTH,
 							 GRID_Y, GRID_X + GRID_WIDTH + 3);
-	WINDOW *hold    = newwin(BOX_HEIGHT, BOX_WIDTH, 
+	windows[HOLD]    = newwin(BOX_HEIGHT, BOX_WIDTH, 
 							 GRID_Y, GRID_X - BOX_WIDTH - 5);
-	WINDOW *info    = newwin(BOX_HEIGHT, BOX_WIDTH, 
+	windows[INFO]    = newwin(BOX_HEIGHT, BOX_WIDTH, 
 							 LINES / 2, GRID_X - BOX_WIDTH - 5);
+
 
 	struct timespec time_prev, time_now;
 	clock_gettime(CLOCK_REALTIME, &time_prev);
@@ -66,18 +77,18 @@ int main(void)
 		time_prev = time_now;
 
 		if (game->has_lost) {
-			werase(grid);
-			mvwprintw(grid, 5, 5, "You lost!\n Press R to restart");
-			box(grid, 0, 0);
-			wrefresh(grid);
+			werase(windows[GRID]);
+			mvwprintw(windows[GRID], 5, 5, "You lost!\n Press R to restart");
+			box(windows[GRID], 0, 0);
+			wrefresh(windows[GRID]);
 			if (getch() == 'r')
 				game = game_create();
 		}
 
 		if (!game->has_lost) {
-			render_grid(grid, game);
-			render_preview(preview, game);
-			render_info(info, game);
+			render_grid(game);
+			render_preview(game);
+			render_info(game);
 
 			switch (getch()) {
 			case 'q':
@@ -103,7 +114,7 @@ int main(void)
 				break;
 			case 'c':
 				game_hold_tetrimino(game);
-				render_hold(hold, game);
+				render_hold(game);
 				break;
 			}
 		}
@@ -172,47 +183,48 @@ void render_active_tetrimino(WINDOW *w, game *game, bool ghost)
 	}
 }
 
-void render_grid(WINDOW *w, game *game)
+void render_grid(game *game)
 {
 	for (int y = 0; y < MAX_ROW; ++y) {
-		wmove(w, 1 + y, 1);
+		wmove(windows[GRID], 1 + y, 1);
 		for (int x = 0; x < MAX_COL; ++x) {
 			chtype c = tetrimino_block(game->grid[y][x]);
-			waddch(w, c);
-			waddch(w, c);
+			waddch(windows[GRID], c);
+			waddch(windows[GRID], c);
 		}
 	}
 
 	/* Order is important, current piece should shadow the ghost piece */
 	/* Ghost piece*/
-	render_active_tetrimino(w, game, true);
+	render_active_tetrimino(windows[GRID], game, true);
 	/* Current piece */
-	render_active_tetrimino(w, game, false);
+	render_active_tetrimino(windows[GRID], game, false);
 
-	box(w, 0, 0);
-	wrefresh(w);
+	box(windows[GRID], 0, 0);
+	wrefresh(windows[GRID]);
 }
 
-void render_preview(WINDOW *w, game *game)
+void render_preview(game *game)
 {
-	werase(w);
+	werase(windows[PREVIEW]);
 	for (int p = 0; p < MAX_PREVIEW; ++p)
-		render_tetrimino(w, game_get_preview(game, p), p * 3);
-	box(w, 0, 0);
-	wrefresh(w);
+		render_tetrimino(windows[PREVIEW], game_get_preview(game, p), p * 3);
+
+	box(windows[PREVIEW], 0, 0);
+	wrefresh(windows[PREVIEW]);
 }
 
-void render_hold(WINDOW *w, game *game)
+void render_hold(game *game)
 {
-	werase(w);
-	render_tetrimino(w, game->hold, 0);
-	box(w, 0, 0);
-	wrefresh(w);
+	werase(windows[HOLD]);
+	render_tetrimino(windows[HOLD], game->hold, 0);
+	box(windows[HOLD], 0, 0);
+	wrefresh(windows[HOLD]);
 }
 
-void render_info(WINDOW *w, game *game) {
-	werase(w);
-	mvwprintw(w, 1, 1, "Lines: %d", game->lines_cleared);
-	mvwprintw(w, 2, 1, "Level: %d", game->level);
-	wrefresh(w);
+void render_info(game *game) {
+	werase(windows[INFO]);
+	mvwprintw(windows[INFO], 1, 1, "Lines: %d", game->lines_cleared);
+	mvwprintw(windows[INFO], 2, 1, "Level: %d", game->level);
+	wrefresh(windows[INFO]);
 }
