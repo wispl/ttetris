@@ -106,7 +106,8 @@ static inline float get_gravity_speed(int level)
 /* Check if a block is valid (in-bounds and on a free cell) */
 static inline bool block_valid(int grid[MAX_ROW][MAX_COL], int x, int y)
 {
-	return x >= 0 && x < MAX_COL && y < MAX_ROW && grid[y][x] == EMPTY;
+	/* even though rows above 0 is hidden, it is still valid */
+	return x >= 0 && x < MAX_COL && y < MAX_ROW && (y < 0 || grid[y][x] == EMPTY);
 }
 
 /* Check if a row is filled (No EMPTY blocks) */
@@ -171,7 +172,7 @@ static void spawn_tetrimino(game *game, enum tetrimino_type type)
 {
 	game->tetrimino.type = type;
 	game->tetrimino.rotation = 0;
-	game->tetrimino.y = 0;
+	game->tetrimino.y = -1;
 
 	/* reset time related settings for the next piece */
 	game->accumulator = 0.0f;
@@ -222,12 +223,18 @@ static void game_place_tetrimino(game *game)
 	/* Check for line clears and get the lowest row which was cleared */
 	bool rows_filled = false;
 	int clear_begin = 0;
+	// bool lost = false;
 
 	for (int n = 0; n < 4; ++n) {
 		enum tetrimino_type type = game->tetrimino.type;
 		const int *offsets = ROTATIONS[type][game->tetrimino.rotation][n];
 		int x = game->tetrimino.x + offsets[0];
 		int y = game->tetrimino.y + offsets[1];
+
+		if (y < 0) {
+			game->has_lost = true;
+			return;
+		}
 		game->grid[y][x] = type;
 
 		/* A line clear can only be on the row of the four cells */
@@ -310,6 +317,7 @@ void game_update(game *game, float dt)
 	game->accumulator += dt;
 	if (game->accumulator > gravity) {
 		game->accumulator -= gravity;
+
 		if (game_tetrimino_valid(game, game->tetrimino.rotation, 0, 1)) {
 			game->tetrimino.y += 1;
 		} else {
@@ -354,6 +362,7 @@ game *game_create()
 	game->accumulator = 0.0F;
 	game->lock_delay = 0.0F;
 	game->bag_index = 0;
+	game->has_lost = false;
 	game->level = 1;
 	game->lines_cleared = 0;
 	for (int y = 0; y < MAX_ROW; ++y) {

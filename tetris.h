@@ -55,6 +55,7 @@ typedef struct {
 	enum tetrimino_type hold;
 	/* whether the player has held already */
 	bool has_held;
+	bool has_lost;
 
 	/* levels*/
 	int level;
