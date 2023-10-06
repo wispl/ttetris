@@ -28,7 +28,7 @@
 void enable_colors();
 chtype tetrimino_block(enum tetrimino_type type);
 void render_tetrimino(WINDOW *w, enum tetrimino_type type, int y_offset);
-void render_active_tetrimino(WINDOW *w, game *game, bool ghost);
+void render_active_tetrimino(game *game, bool ghost);
 void render_grid(game *game);
 void render_preview(game *game);
 void render_hold(game *game);
@@ -158,7 +158,7 @@ void render_tetrimino(WINDOW *w, enum tetrimino_type type, int y_offset)
 
 /* renders the active tetrimino as either a ghost piece or regular piece. This
  * duplication is due to cells not being rendered above row 20 */
-void render_active_tetrimino(WINDOW *w, game *game, bool ghost)
+void render_active_tetrimino(game *game, bool ghost)
 {
 	for (int n = 0; n < 4; ++n) {
 		const int *offset = ROTATIONS[game->tetrimino.type][game->tetrimino.rotation][n];
@@ -171,8 +171,8 @@ void render_active_tetrimino(WINDOW *w, game *game, bool ghost)
 		if (y < 0)
 			continue;
 
-		mvwaddch(w, BORDER_WIDTH + y, BORDER_WIDTH + x, c);
-		waddch(w, c);
+		mvwaddch(windows[GRID], BORDER_WIDTH + y, BORDER_WIDTH + x, c);
+		waddch(windows[GRID], c);
 	}
 }
 
@@ -189,9 +189,9 @@ void render_grid(game *game)
 
 	/* Order is important, current piece should shadow the ghost piece */
 	/* Ghost piece*/
-	render_active_tetrimino(windows[GRID], game, true);
+	render_active_tetrimino(game, true);
 	/* Current piece */
-	render_active_tetrimino(windows[GRID], game, false);
+	render_active_tetrimino(game, false);
 
 	box(windows[GRID], 0, 0);
 	wrefresh(windows[GRID]);
