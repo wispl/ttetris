@@ -114,9 +114,8 @@ static inline bool block_valid(int grid[MAX_ROW][MAX_COL], int x, int y)
 static bool row_filled(int grid[MAX_ROW][MAX_COL], int row)
 {
 	for (int n = 0; n < MAX_COL; ++n) {
-		if (grid[row][n] == EMPTY) {
+		if (grid[row][n] == EMPTY)
 			return false;
-		}
 	}
 	return true;
 }
@@ -157,7 +156,7 @@ static enum tetrimino_type game_next_tetrimino(game *game)
 	enum tetrimino_type type = game->bag[game->bag_index];
 	game->bag[game->bag_index] = game->shuffle_bag[game->bag_index];
 
-	/* shuffle bag is exhausted */
+	/* shuffle bag is exhausted, so shuffle it again */
 	if (game->bag_index == BAGSIZE - 1)
 		/* a 7-bag system requires shuffling all 7 types in a bag */
 		bag_shuffle(game->shuffle_bag);
@@ -195,6 +194,7 @@ static void game_clear_rows(game *game, int row)
 	 * non-filled rows to the tail at the top of the stack */
 	int head = row;
 	int tail = row;
+	int lines = 0;
 
 	/* start at the first non-filled row */
 	while (!row_filled(game->grid, head)) {
@@ -206,6 +206,7 @@ static void game_clear_rows(game *game, int row)
 		if (row_filled(game->grid, head)) {
 			clear_row(game->grid, head);
 			++game->lines_cleared;
+			++lines;
 
 			/* new level every 10 levels */
 			game->level = (game->lines_cleared / 10) + 1; 
@@ -215,6 +216,15 @@ static void game_clear_rows(game *game, int row)
 		}
 		--head;
 	}
+
+	/* Scoring
+	 * 1 -> 100 * level 
+	 * 2 -> 300 * level 
+	 * 3 -> 500 * level
+	 * 4 -> 800 * level (also called a tetris)
+	 */
+	bool is_tetris = (lines == 4);
+	game->score += (100 + (lines - 1) * 200 + (100 * is_tetris)) * game->level;
 }
 
 /* Place the active tetrimino and check for and handle line clears */
@@ -259,6 +269,9 @@ void game_move_tetrimino(game *game, int x_offset, int y_offset)
 	if (game_tetrimino_valid(game, game->tetrimino.rotation, x_offset, y_offset)) {
 		game->tetrimino.x += x_offset;
 		game->tetrimino.y += y_offset;
+
+		if (y_offset > 0)
+			++game->score;
 	}
 }
 
@@ -365,6 +378,8 @@ game *game_create()
 	game->has_lost = false;
 	game->level = 1;
 	game->lines_cleared = 0;
+	game->score = 0;
+
 	for (int y = 0; y < MAX_ROW; ++y) {
 		for (int x = 0; x < MAX_COL; ++x) {
 			game->grid[y][x] = EMPTY;

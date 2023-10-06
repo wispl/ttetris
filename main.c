@@ -14,12 +14,15 @@
 
 #define GRID_X        (COLS / 2) - (MAX_ROW / 2)
 #define GRID_Y        (LINES - MAX_ROW) / 2
-#define GRID_HEIGHT   MAX_ROW + 2 * BORDER_WIDTH
-#define GRID_WIDTH    MAX_COL * CELL_WIDTH + BORDER_WIDTH * 2
+#define GRID_H        MAX_ROW + 2 * BORDER_WIDTH
+#define GRID_W        MAX_COL * CELL_WIDTH + BORDER_WIDTH * 2
 
 /* space needed to place tetrmino within a box */
-#define BOX_WIDTH     4 * CELL_WIDTH + 2 * BORDER_WIDTH
-#define BOX_HEIGHT    3 + 2 * BORDER_WIDTH
+#define BOX_W         4 * CELL_WIDTH + 2 * BORDER_WIDTH
+#define BOX_H         3 + 2 * BORDER_WIDTH
+
+#define INFO_W        20
+#define INFO_H        5
 
 /* Rendering logic is here, for game logic see tetris.c */
 void enable_colors();
@@ -51,13 +54,10 @@ int main(void)
 	bool running = true;
 	game *game = game_create();
 
-	windows[GRID]    = newwin(GRID_HEIGHT, GRID_WIDTH, GRID_Y, GRID_X);
-	windows[PREVIEW] = newwin(MAX_PREVIEW * BOX_HEIGHT, BOX_WIDTH,
-							 GRID_Y, GRID_X + GRID_WIDTH + 3);
-	windows[HOLD]    = newwin(BOX_HEIGHT, BOX_WIDTH, 
-							 GRID_Y, GRID_X - BOX_WIDTH - 5);
-	windows[INFO]    = newwin(BOX_HEIGHT, BOX_WIDTH, 
-							 LINES / 2, GRID_X - BOX_WIDTH - 5);
+	windows[GRID]    = newwin(GRID_H, GRID_W, GRID_Y, GRID_X);
+	windows[PREVIEW] = newwin(N_PREVIEW * BOX_H, BOX_W, GRID_Y, GRID_X + GRID_W);
+	windows[HOLD]    = newwin(BOX_H, BOX_W, GRID_Y, GRID_X - BOX_W - 5);
+	windows[INFO]    = newwin(INFO_H, INFO_W, LINES / 2, GRID_X - INFO_W);
 
 
 	struct timespec time_prev, time_now;
@@ -199,7 +199,7 @@ void render_grid(game *game)
 void render_preview(game *game)
 {
 	werase(windows[PREVIEW]);
-	for (int p = 0; p < MAX_PREVIEW; ++p)
+	for (int p = 0; p < N_PREVIEW; ++p)
 		render_tetrimino(windows[PREVIEW], game_get_preview(game, p), p * 3);
 
 	box(windows[PREVIEW], 0, 0);
@@ -218,5 +218,6 @@ void render_info(game *game) {
 	werase(windows[INFO]);
 	mvwprintw(windows[INFO], 1, 1, "Lines: %d", game->lines_cleared);
 	mvwprintw(windows[INFO], 2, 1, "Level: %d", game->level);
+	mvwprintw(windows[INFO], 3, 1, "Score: %d", game->score);
 	wrefresh(windows[INFO]);
 }

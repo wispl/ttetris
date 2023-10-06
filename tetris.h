@@ -9,7 +9,7 @@
 
 /* bag settings */
 #define BAGSIZE     7
-#define MAX_PREVIEW 5
+#define N_PREVIEW   5
 
 #define LOCK_DELAY  0.5
 
@@ -58,9 +58,10 @@ typedef struct {
 	/* whether the player has held already */
 	bool has_held;
 
-	/* levels*/
+	/* levels and scoring */
 	int level;
 	int lines_cleared;
+	int score;
 } game;
 
 game *game_create();
