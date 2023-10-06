@@ -41,6 +41,12 @@ typedef struct {
 	/* current piece */
 	struct tetrimino tetrimino;
 
+	/* absolute y-coordinate of the ghost piece 
+	 * The ghost piece has the same rotation as the active piece
+	 * just at the bottom of the stack
+	 */
+	int ghost_y;
+
 	/* collected delta times used for updating physics */
 	float accumulator;
 	/* start of lock_delay */
@@ -72,8 +78,6 @@ void game_update(game *game, float dt);
 
 /* Get the tetrimino type of the prevew at index, wrapping around BAGSIZE. */
 enum tetrimino_type game_get_preview(game *game, int index);
-
-int game_ghost_y(game *game);
 
 /* Drop the tetrimino down as far as possible */
 void game_harddrop_tetrimino(game *game);

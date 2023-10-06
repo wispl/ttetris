@@ -54,10 +54,11 @@ int main(void)
 	bool running = true;
 	game *game = game_create();
 
-	windows[GRID]    = newwin(GRID_H, GRID_W, GRID_Y, GRID_X);
-	windows[PREVIEW] = newwin(N_PREVIEW * BOX_H, BOX_W, GRID_Y, GRID_X + GRID_W);
-	windows[HOLD]    = newwin(BOX_H, BOX_W, GRID_Y, GRID_X - BOX_W - 5);
+	windows[GRID]    = newwin(GRID_H, GRID_W, GRID_Y   , GRID_X);
+	windows[HOLD]    = newwin(BOX_H , BOX_W , GRID_Y   , GRID_X - BOX_W - 5);
 	windows[INFO]    = newwin(INFO_H, INFO_W, LINES / 2, GRID_X - INFO_W);
+
+	windows[PREVIEW] = newwin(N_PREVIEW * BOX_H, BOX_W, GRID_Y, GRID_X + GRID_W);
 
 
 	struct timespec time_prev, time_now;
@@ -163,7 +164,7 @@ void render_active_tetrimino(WINDOW *w, game *game, bool ghost)
 		const int *offset = ROTATIONS[game->tetrimino.type][game->tetrimino.rotation][n];
 
 		int x = (game->tetrimino.x + offset[0]) * 2;
-		int y = ghost ? game_ghost_y(game) + offset[1] : game->tetrimino.y + offset[1];
+		int y = (ghost ? game->ghost_y : game->tetrimino.y) + offset[1];
 		int c = ghost ? '/' : tetrimino_block(game->tetrimino.type);
 
 		/* do not render rows above 0 */

@@ -148,6 +148,18 @@ game_tetrimino_valid(game *game, int rotation, int x_offset, int y_offset)
 	return true;
 }
 
+/* Gets the y-offset of the ghost piece, this is recalculated when the
+ * coordinates of the active piece changes, so during rotation, movement, and
+ * spawning a new piece */
+static int get_ghost_offset(game *game)
+{
+	int y = 0;
+	while (game_tetrimino_valid(game, game->tetrimino.rotation, 0, y + 1))
+		++y;
+
+	return y;
+}
+
 /* Get the next tetrimino from the bag and handles shuffling */
 static enum tetrimino_type game_next_tetrimino(game *game)
 {
@@ -171,18 +183,19 @@ static void spawn_tetrimino(game *game, enum tetrimino_type type)
 {
 	game->tetrimino.type = type;
 	game->tetrimino.rotation = 0;
+
 	game->tetrimino.y = -1;
+	/* O-piece has a different starting placement */
+	if (type == O)
+		game->tetrimino.x = 4;
+	else
+		game->tetrimino.x = 3;
+	game->ghost_y = get_ghost_offset(game) + game->tetrimino.y;
 
 	/* reset time related settings for the next piece */
 	game->accumulator = 0.0f;
 	game->lock_delay = 0.0f;
 
-	/* O-piece has a different starting placement */
-	if (type == O) {
-		game->tetrimino.x = 4;
-	} else {
-		game->tetrimino.x = 3;
-	}
 }
 
 /* Clear filled rows, and does book-keeping (points and row shifting)
@@ -233,7 +246,6 @@ static void game_place_tetrimino(game *game)
 	/* Check for line clears and get the lowest row which was cleared */
 	bool rows_filled = false;
 	int clear_begin = 0;
-	// bool lost = false;
 
 	for (int n = 0; n < 4; ++n) {
 		enum tetrimino_type type = game->tetrimino.type;
@@ -269,6 +281,7 @@ void game_move_tetrimino(game *game, int x_offset, int y_offset)
 	if (game_tetrimino_valid(game, game->tetrimino.rotation, x_offset, y_offset)) {
 		game->tetrimino.x += x_offset;
 		game->tetrimino.y += y_offset;
+		game->ghost_y = get_ghost_offset(game) + game->tetrimino.y;
 
 		if (y_offset > 0)
 			++game->score;
@@ -283,6 +296,7 @@ void game_rotate_tetrimino(game *game, int rotate_by)
 	/* O-piece will alway pass because its rotation cannot failed */
 	if (game_tetrimino_valid(game, rotation, 0, 0)) {
 		game->tetrimino.rotation = rotation;
+		game->ghost_y = get_ghost_offset(game) + game->tetrimino.y;
 		return;
 	}
 
@@ -296,6 +310,7 @@ void game_rotate_tetrimino(game *game, int rotate_by)
 			game->tetrimino.rotation = rotation;
 			game->tetrimino.x += offset[0];
 			game->tetrimino.y += offset[1];
+			game->ghost_y = get_ghost_offset(game) + game->tetrimino.y;
 			return;
 		}
 	}
@@ -303,19 +318,11 @@ void game_rotate_tetrimino(game *game, int rotate_by)
 	/* rotation failed, no change occurs */
 }
 
-int game_ghost_y(game *game)
-{
-	int y = 0;
-	while (game_tetrimino_valid(game, game->tetrimino.rotation, 0, y + 1))
-		++y;
-	/* add the current tetrimino.y to convert from relative to absolute */
-	return game->tetrimino.y + y;
-}
-
 void game_harddrop_tetrimino(game *game)
 {
+	game->score += get_ghost_offset(game) * 2;
 	/* swap y's with the ghost piece, dropping it as far as possible */
-	game->tetrimino.y = game_ghost_y(game);
+	game->tetrimino.y = game->ghost_y;
 	game_place_tetrimino(game);
 }
 
