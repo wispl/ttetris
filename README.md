@@ -8,22 +8,17 @@ Tetris in the terminal
 * SRS rotation
 * Holding
 * Previews
+* Music
 
 #### Todo
 
-- [ ] frame code seems incorrect, investigate later
-- [ ] better line clearing code
-- [ ] leveling and scoring
-- [ ] allow the player to lose
-- [ ] restart
 - [ ] customizable keybinds?
 - [ ] network?
 
 #### Missing
 
 * no DAS, not sure if it is possible
-* multiple keypresses at once
-* gui
+* gui :)
 
 ### Building
 
@@ -37,6 +32,7 @@ make
 #### Dependencies
 
 ncurses
+miniaudio (vendored)
 
 ### Credits
 

@@ -5,7 +5,7 @@
 #include <time.h>
 #include <math.h>
 
- /*Tetris game logic */
+ /* Tetris game logic */
 const enum tetrimino_type ROTATIONS[7][4][4][2] = {
 	[I] = {{{0, 1}, {1, 1}, {2, 1}, {3, 1}},
 	       {{2, 0}, {2, 1}, {2, 2}, {2, 3}},
@@ -195,7 +195,6 @@ static void spawn_tetrimino(game *game, enum tetrimino_type type)
 	/* reset time related settings for the next piece */
 	game->accumulator = 0.0f;
 	game->lock_delay = 0.0f;
-
 }
 
 /* Clear filled rows, and does book-keeping (points and row shifting)
@@ -275,6 +274,8 @@ static void game_place_tetrimino(game *game)
 	spawn_tetrimino(game, game_next_tetrimino(game));
 }
 
+/*** Game controls ***/
+
 void game_move_tetrimino(game *game, int x_offset, int y_offset)
 {
 	/* this is used for user controls so we check bounds */
@@ -283,6 +284,7 @@ void game_move_tetrimino(game *game, int x_offset, int y_offset)
 		game->tetrimino.y += y_offset;
 		game->ghost_y = get_ghost_offset(game) + game->tetrimino.y;
 
+		/* get one point for each cell softdropped (move down) */
 		if (y_offset > 0)
 			++game->score;
 	}
@@ -320,13 +322,34 @@ void game_rotate_tetrimino(game *game, int rotate_by)
 
 void game_harddrop_tetrimino(game *game)
 {
+	/* add two points for each cell harddropped */
 	game->score += get_ghost_offset(game) * 2;
 	/* swap y's with the ghost piece, dropping it as far as possible */
 	game->tetrimino.y = game->ghost_y;
 	game_place_tetrimino(game);
 }
 
-enum tetrimino_type game_get_preview(game *game, int index)
+void game_hold_tetrimino(game *game)
+{
+	/* user is not allow to hold twice in a row */
+	if (game->has_held)
+		return;
+
+	game->has_held = true;
+
+	/* swap hold and current piece */
+	enum tetrimino_type hold = game->hold;
+	game->hold = game->tetrimino.type;
+
+	if (hold != EMPTY)
+		spawn_tetrimino(game, hold);
+	else
+		spawn_tetrimino(game, game_next_tetrimino(game));
+}
+
+/*** Game states ***/
+
+inline enum tetrimino_type game_get_preview(game *game, int index)
 {
 	return game->bag[(game->bag_index + index) % BAGSIZE];
 }
@@ -351,25 +374,6 @@ void game_update(game *game, float dt)
 			else if (game->lock_delay > LOCK_DELAY) 
 				game_place_tetrimino(game);
 		}
-	}
-}
-
-void game_hold_tetrimino(game *game)
-{
-	/* user is not allow to hold twice in a row */
-	if (game->has_held) {
-		return;
-	}
-	game->has_held = true;
-
-	/* swap hold and current piece */
-	enum tetrimino_type hold = game->hold;
-	game->hold = game->tetrimino.type;
-
-	if (hold != EMPTY) {
-		spawn_tetrimino(game, hold);
-	} else {
-		spawn_tetrimino(game, game_next_tetrimino(game));
 	}
 }
 
