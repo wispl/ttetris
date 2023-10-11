@@ -9,6 +9,9 @@
 #include <stdbool.h>
 #include <time.h>
 
+#define MINIAUDIO_IMPLEMENTATION
+#include "extern/miniaudio.h"
+
 #define BORDER_WIDTH  1
 #define CELL_WIDTH    2
 
@@ -24,7 +27,8 @@
 #define INFO_W        20
 #define INFO_H        5
 
-/* Rendering logic is here, for game logic see tetris.c */
+/* Rendering and music is here, for game logic see tetris.c */
+void data_callback(ma_device* device, void* output, const void* input, ma_uint32 frame);
 void enable_colors();
 chtype tetrimino_block(enum tetrimino_type type);
 void render_tetrimino(WINDOW *w, enum tetrimino_type type, int y_offset);
@@ -39,32 +43,63 @@ WINDOW* windows[NWINDOWS];
 
 int main(void)
 {
-	/* start ncurses */
-	initscr();
-	cbreak();
-	noecho();
-	curs_set(0);
-	keypad(stdscr, TRUE);
+    /* start ncurses */
+    initscr();
+    cbreak();
+    noecho();
+    curs_set(0);
+    keypad(stdscr, TRUE);
 
-	/* do not wait for input */
-	nodelay(stdscr, TRUE);
+    /* do not wait for input */
+    nodelay(stdscr, TRUE);
 
-	enable_colors();
+    enable_colors();
 
-	bool running = true;
-	game *game = game_create();
+    bool running = true;
+    game *game = game_create();
 
-	windows[GRID]    = newwin(GRID_H, GRID_W, GRID_Y   , GRID_X);
-	windows[HOLD]    = newwin(BOX_H , BOX_W , GRID_Y   , GRID_X - BOX_W - 5);
-	windows[INFO]    = newwin(INFO_H, INFO_W, LINES / 2, GRID_X - INFO_W);
+    windows[GRID] = newwin(GRID_H, GRID_W, GRID_Y, GRID_X);
+    windows[HOLD] = newwin(BOX_H, BOX_W, GRID_Y, GRID_X - BOX_W - 5);
+    windows[INFO] = newwin(INFO_H, INFO_W, LINES / 2, GRID_X - INFO_W);
 
-	windows[PREVIEW] = newwin(N_PREVIEW * BOX_H, BOX_W, GRID_Y, GRID_X + GRID_W);
+    windows[PREVIEW] = newwin(N_PREVIEW * BOX_H, BOX_W, GRID_Y, GRID_X + GRID_W);
 
+	/* audio */
+	ma_result result;
+	ma_decoder decoder;
+	ma_device_config device_config;
+	ma_device device;
 
-	struct timespec time_prev, time_now;
-	clock_gettime(CLOCK_REALTIME, &time_prev);
+	result = ma_decoder_init_file("Tetris.mp3", NULL, &decoder);
+	if (result != MA_SUCCESS)
+		return -1;
 
-	while (running) {
+    /* set looping */
+    ma_data_source_set_looping(&decoder, MA_TRUE);
+
+    device_config = ma_device_config_init(ma_device_type_playback);
+    device_config.noPreSilencedOutputBuffer = true;
+    device_config.playback.format   = decoder.outputFormat;
+    device_config.playback.channels = decoder.outputChannels;
+    device_config.sampleRate        = decoder.outputSampleRate;
+    device_config.dataCallback      = data_callback;
+    device_config.pUserData         = &decoder;
+    device_config.noClip            = true;
+
+    if (ma_device_init(NULL, &device_config, &device) != MA_SUCCESS) {
+        ma_decoder_uninit(&decoder);
+        return -1;
+    }
+
+    if (ma_device_start(&device) != MA_SUCCESS) {
+        ma_device_uninit(&device);
+        ma_decoder_uninit(&decoder);
+        return -1;
+    }
+
+    struct timespec time_prev, time_now;
+    clock_gettime(CLOCK_REALTIME, &time_prev);
+    while (running) {
 		clock_gettime(CLOCK_REALTIME, &time_now);
 		game_update(game, time_now.tv_sec - time_prev.tv_sec);
 		time_prev = time_now;
@@ -113,10 +148,22 @@ int main(void)
 		}
 	}
 
+	ma_device_uninit(&device);
+	ma_decoder_uninit(&decoder);
 	wclear(stdscr);
 	endwin();
 	game_destroy(game);
 	return 0;
+}
+
+void data_callback(ma_device* device, void* output, const void* input, ma_uint32 frame)
+{
+	ma_decoder* decoder = device->pUserData;
+	if (decoder == NULL)
+		return;
+	
+	ma_data_source_read_pcm_frames(decoder, output, frame, NULL);
+	(void) input;
 }
 
 void enable_colors()
