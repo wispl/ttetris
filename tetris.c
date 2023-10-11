@@ -237,6 +237,9 @@ static void game_clear_rows(game *game, int row)
 	 */
 	bool is_tetris = (lines == 4);
 	game->score += (100 + (lines - 1) * 200 + (100 * is_tetris)) * game->level;
+	
+	int combo_extra = game->combo > 0 ? game->combo : 0;
+	game->score += 50 * game->combo * combo_extra * game->level;
 }
 
 /* Place the active tetrimino and check for and handle line clears */
@@ -266,8 +269,12 @@ static void game_place_tetrimino(game *game)
 		}
 	}
 
-	if (rows_filled)
+	if (rows_filled) {
+		++game->combo;
 		game_clear_rows(game, clear_begin);
+	} else {
+		game->combo = -1;
+	}
 
 	/* get a new piece and allow the user to hold again */
 	game->has_held = false;
@@ -390,11 +397,11 @@ game *game_create()
 	game->level = 1;
 	game->lines_cleared = 0;
 	game->score = 0;
+	game->combo = -1;
 
 	for (int y = 0; y < MAX_ROW; ++y) {
-		for (int x = 0; x < MAX_COL; ++x) {
+		for (int x = 0; x < MAX_COL; ++x)
 			game->grid[y][x] = EMPTY;
-		}
 	}
 
 	/* set initial state of the bag */

@@ -267,5 +267,6 @@ void render_info(game *game) {
 	mvwprintw(windows[INFO], 1, 1, "Lines: %d", game->lines_cleared);
 	mvwprintw(windows[INFO], 2, 1, "Level: %d", game->level);
 	mvwprintw(windows[INFO], 3, 1, "Score: %d", game->score);
+	mvwprintw(windows[INFO], 4, 1, "Combo: %d", game->combo);
 	wrefresh(windows[INFO]);
 }

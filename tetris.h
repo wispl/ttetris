@@ -68,6 +68,7 @@ typedef struct {
 	int level;
 	int lines_cleared;
 	int score;
+	int combo;
 } game;
 
 game *game_create();
