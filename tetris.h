@@ -72,6 +72,7 @@ typedef struct {
 } game;
 
 game *game_create();
+void game_reset(game* game);
 void game_destroy(game *game);
 
 /* Updates tetrimino according to gravity */

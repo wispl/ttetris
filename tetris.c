@@ -378,7 +378,7 @@ void game_update(game *game, float dt)
 
 			if (game->lock_delay == 0.0f) 
 				game->lock_delay = now.tv_sec;
-			else if (game->lock_delay > LOCK_DELAY) 
+			else if (game->lock_delay > LOCK_DELAY)
 				game_place_tetrimino(game);
 		}
 	}
@@ -417,6 +417,30 @@ game *game_create()
 
 	spawn_tetrimino(game, game_next_tetrimino(game));
 	return game;
+}
+
+void game_reset(game *game)
+{
+	game->hold = EMPTY;
+	game->has_held = false;
+	game->accumulator = 0.0F;
+	game->lock_delay = 0.0F;
+	game->bag_index = 0;
+	game->has_lost = false;
+	game->level = 1;
+	game->lines_cleared = 0;
+	game->score = 0;
+	game->combo = -1;
+
+	for (int y = 0; y < MAX_ROW; ++y) {
+		for (int x = 0; x < MAX_COL; ++x)
+			game->grid[y][x] = EMPTY;
+	}
+
+	bag_shuffle(game->bag);
+	bag_shuffle(game->shuffle_bag);
+
+	spawn_tetrimino(game, game_next_tetrimino(game));
 }
 
 void game_destroy(game *game)

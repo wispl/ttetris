@@ -110,7 +110,7 @@ int main(void)
 			box(windows[GRID], 0, 0);
 			wrefresh(windows[GRID]);
 			if (getch() == 'r')
-				game = game_create();
+				game_reset(game);
 		}
 
 		if (!game->has_lost) {
