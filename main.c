@@ -6,11 +6,10 @@
 #include <ncurses/ncurses.h>
 #endif
 
-#include <stdbool.h>
-#include <time.h>
-
 #define MINIAUDIO_IMPLEMENTATION
 #include "extern/miniaudio.h"
+
+#include <stdbool.h>
 
 #define BORDER_WIDTH  1
 #define CELL_WIDTH    2
@@ -25,7 +24,7 @@
 #define BOX_H         3 + 2 * BORDER_WIDTH
 
 #define INFO_W        20
-#define INFO_H        5
+#define INFO_H        8
 
 /* Rendering and music is here, for game logic see tetris.c */
 void data_callback(ma_device* device, void* output, const void* input, ma_uint32 frame);
@@ -97,13 +96,7 @@ int main(void)
         return -1;
     }
 
-    struct timespec time_prev, time_now;
-    clock_gettime(CLOCK_REALTIME, &time_prev);
     while (running) {
-		clock_gettime(CLOCK_REALTIME, &time_now);
-		game_update(game, time_now.tv_sec - time_prev.tv_sec);
-		time_prev = time_now;
-
 		if (game->has_lost) {
 			werase(windows[GRID]);
 			mvwprintw(windows[GRID], 5, 5, "You lost!\n Press R to restart");
@@ -117,6 +110,8 @@ int main(void)
 			render_grid(game);
 			render_preview(game);
 			render_info(game);
+
+			game_update(game);
 
 			switch (getch()) {
 			case 'q':

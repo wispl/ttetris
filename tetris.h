@@ -2,6 +2,7 @@
 #define TETRIS_H
 
 #include <stdbool.h>
+#include <time.h>
 
 /* grid dimensions */
 #define MAX_ROW     20
@@ -11,7 +12,7 @@
 #define BAGSIZE     7
 #define N_PREVIEW   5
 
-#define LOCK_DELAY  0.5
+#define LOCK_DELAY  0.5F
 
 enum tetrimino_type { EMPTY = -1, I, J, L, O, S, T, Z };
 extern enum tetrimino_type type;
@@ -49,8 +50,13 @@ typedef struct {
 
 	/* collected delta times used for updating physics */
 	float accumulator;
+	/* timestamp of previous frame */
+	struct timespec time_prev;
+
 	/* start of lock_delay */
-	float lock_delay;
+	struct timespec lock_delay;
+	/* whether active tetrimino is in autoplacement state */
+	bool piece_lock;
 
 	/* these bags are ring buffers and used for future pieces and preview */
 	int bag_index;
@@ -76,7 +82,7 @@ void game_reset(game* game);
 void game_destroy(game *game);
 
 /* Updates tetrimino according to gravity */
-void game_update(game *game, float dt);
+void game_update(game *game);
 
 /* Get the tetrimino type of the prevew at index, wrapping around BAGSIZE. */
 enum tetrimino_type game_get_preview(game *game, int index);

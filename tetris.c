@@ -6,6 +6,7 @@
 #include <math.h>
 
  /* Tetris game logic */
+
 const enum tetrimino_type ROTATIONS[7][4][4][2] = {
 	[I] = {{{0, 1}, {1, 1}, {2, 1}, {3, 1}},
 	       {{2, 0}, {2, 1}, {2, 2}, {2, 3}},
@@ -85,6 +86,23 @@ const int KICKTABLE[2][2][4][4][2] = {
 		
 	}};
 
+/*** Time related functions ***/
+
+/* returns the time it takes for a tetrimino to move down one row */
+static inline float
+get_gravity_speed(int level)
+{
+	/* TODO: Look into storing precomputed values */
+	return powf(0.8 - ((level - 1) * 0.007), level - 1);
+}
+
+/* returns difference of time in seconds */
+static inline float
+diff_timespec(const struct timespec *t1, const struct timespec *t0)
+{
+	return (t1->tv_sec - t0->tv_sec) + (t1->tv_nsec - t0->tv_nsec) * 1e-9;
+}
+
 /* Shuffles the tetrimino bag in place (supports only BAGSIZE) */
 static void bag_shuffle(enum tetrimino_type bag[BAGSIZE])
 {
@@ -95,12 +113,6 @@ static void bag_shuffle(enum tetrimino_type bag[BAGSIZE])
 		bag[j] = bag[i];
 		bag[i] = tmp;
 	}
-}
-
-/* returns the time it takes for a tetrimino to move down one row */
-static inline float get_gravity_speed(int level)
-{
-	return pow((0.8 - ((level - 1) * 0.007)), (level - 1));
 }
 
 /* Check if a block is valid (in-bounds and on a free cell) */
@@ -193,8 +205,8 @@ static void spawn_tetrimino(game *game, enum tetrimino_type type)
 	game->ghost_y = get_ghost_offset(game) + game->tetrimino.y;
 
 	/* reset time related settings for the next piece */
-	game->accumulator = 0.0f;
-	game->lock_delay = 0.0f;
+	game->accumulator = 0.0F;
+	game->piece_lock = false;
 }
 
 /* Clear filled rows, and does book-keeping (points and row shifting)
@@ -361,26 +373,34 @@ inline enum tetrimino_type game_get_preview(game *game, int index)
 	return game->bag[(game->bag_index + index) % BAGSIZE];
 }
 
-void game_update(game *game, float dt)
+void game_update(game *game)
 {
-	float gravity = get_gravity_speed(game->level);
-	game->accumulator += dt;
-	if (game->accumulator > gravity) {
-		game->accumulator -= gravity;
+	struct timespec time_now;
+	clock_gettime(CLOCK_MONOTONIC, &time_now);
 
-		if (game_tetrimino_valid(game, game->tetrimino.rotation, 0, 1)) {
+	/* delta time calculation */
+	game->accumulator += diff_timespec(&time_now, &game->time_prev);
+	game->time_prev = time_now;
+
+	/* check if tetrimino can be moved down by gravity */
+	if (game_tetrimino_valid(game, game->tetrimino.rotation, 0, 1)) {
+		float gravity = get_gravity_speed(game->level);
+		if (game->accumulator > gravity) {
+			game->accumulator -= gravity;
 			game->tetrimino.y += 1;
-		} else {
-			/* lock delay for when a tetrimino cannot be moved and
-			 * must be placed. By default the delay is 0.5 seconds */
-			struct timespec now;
-			clock_gettime(CLOCK_REALTIME, &now);
-
-			if (game->lock_delay == 0.0f) 
-				game->lock_delay = now.tv_sec;
-			else if (game->lock_delay > LOCK_DELAY)
-				game_place_tetrimino(game);
 		}
+	} else {
+		/* start timer for autoplacement if tetrimino must be placed */
+		if (!game->piece_lock) {
+			game->piece_lock = true;
+			game->lock_delay = time_now;
+		}
+	}
+
+	/* piece autoplacement is independent of gravity */
+	if (game->piece_lock 
+			&& diff_timespec(&time_now, &game->lock_delay) > LOCK_DELAY) {
+		game_place_tetrimino(game);
 	}
 }
 
@@ -391,7 +411,7 @@ game *game_create()
 	game->hold = EMPTY;
 	game->has_held = false;
 	game->accumulator = 0.0F;
-	game->lock_delay = 0.0F;
+	game->piece_lock = false;
 	game->bag_index = 0;
 	game->has_lost = false;
 	game->level = 1;
@@ -415,6 +435,7 @@ game *game_create()
 	bag_shuffle(game->bag);
 	bag_shuffle(game->shuffle_bag);
 
+	clock_gettime(CLOCK_MONOTONIC, &game->time_prev);
 	spawn_tetrimino(game, game_next_tetrimino(game));
 	return game;
 }
@@ -424,7 +445,7 @@ void game_reset(game *game)
 	game->hold = EMPTY;
 	game->has_held = false;
 	game->accumulator = 0.0F;
-	game->lock_delay = 0.0F;
+	game->piece_lock = false;
 	game->bag_index = 0;
 	game->has_lost = false;
 	game->level = 1;
