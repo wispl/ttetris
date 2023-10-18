@@ -85,18 +85,18 @@ void game_destroy(game *game);
 void game_update(game *game);
 
 /* Get the tetrimino type of the prevew at index, wrapping around BAGSIZE. */
-enum tetrimino_type game_get_preview(game *game, int index);
+enum tetrimino_type game_preview(const game *game, int index);
 
 /* Drop the tetrimino down as far as possible */
-void game_harddrop_tetrimino(game *game);
+void game_harddrop(game *game);
 
 /* Move the tetrimino by offset, accounting for collision checks */
-void game_move_tetrimino(game *game, int x_offset, int y_offset);
+void game_move(game *game, int x_offset, int y_offset);
 
 /* Hold the tetrimino, can only be used once per piece */
-void game_hold_tetrimino(game *game);
+void game_hold(game *game);
 
 /* Rotate the tetrimino, handling SRS and kicktables */
-void game_rotate_tetrimino(game *game, int rotate_by);
+void game_rotate(game *game, int rotate_by);
 
 #endif /* TETRIS_H */

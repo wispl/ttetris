@@ -31,16 +31,17 @@ void data_callback(ma_device* device, void* output, const void* input, ma_uint32
 void enable_colors();
 chtype tetrimino_block(enum tetrimino_type type);
 void render_tetrimino(WINDOW *w, enum tetrimino_type type, int y_offset);
-void render_active_tetrimino(game *game, bool ghost);
-void render_grid(game *game);
-void render_preview(game *game);
-void render_hold(game *game);
-void render_info(game *game);
+void render_active_tetrimino(const game *game, bool ghost);
+void render_grid(const game *game);
+void render_preview(const game *game);
+void render_hold(const game *game);
+void render_info(const game *game);
 
 enum window_type { GRID, PREVIEW, HOLD, INFO, NWINDOWS };
 WINDOW* windows[NWINDOWS];
 
-int main(void)
+int
+main(void)
 {
     /* start ncurses */
     initscr();
@@ -118,25 +119,25 @@ int main(void)
 				running = false;
 				break;
 			case KEY_LEFT:
-				game_move_tetrimino(game, -1, 0);
+				game_move(game, -1, 0);
 				break;
 			case KEY_RIGHT:
-				game_move_tetrimino(game, 1, 0);
+				game_move(game, 1, 0);
 				break;
 			case KEY_DOWN:
-				game_harddrop_tetrimino(game);
+				game_harddrop(game);
 				break;
 			case KEY_UP:
-				game_move_tetrimino(game, 0, 1);
+				game_move(game, 0, 1);
 				break;
 			case 'x':
-				game_rotate_tetrimino(game, 1);
+				game_rotate(game, 1);
 				break;
 			case 'z':
-				game_rotate_tetrimino(game, -1);
+				game_rotate(game, -1);
 				break;
 			case 'c':
-				game_hold_tetrimino(game);
+				game_hold(game);
 				render_hold(game);
 				break;
 			}
@@ -151,7 +152,8 @@ int main(void)
 	return 0;
 }
 
-void data_callback(ma_device* device, void* output, const void* input, ma_uint32 frame)
+void
+data_callback(ma_device* device, void* output, const void* input, ma_uint32 frame)
 {
 	ma_decoder* decoder = device->pUserData;
 	if (decoder == NULL)
@@ -161,7 +163,8 @@ void data_callback(ma_device* device, void* output, const void* input, ma_uint32
 	(void) input;
 }
 
-void enable_colors()
+void
+enable_colors()
 {
 	/* TODO: add check if terminal supports color */
 	start_color();
@@ -179,13 +182,15 @@ void enable_colors()
 
 /* chtype for rendering block of given tetrimino type, handles indicing for
  * color pairs, prefer over manually getting chtype */
-inline chtype tetrimino_block(enum tetrimino_type type)
+inline chtype
+tetrimino_block(enum tetrimino_type type)
 {
 	return ' ' | A_REVERSE | COLOR_PAIR(type + 2);
 }
 
 /* renders a tetrimino of type with offset y, this renders *any* tetrimino */
-void render_tetrimino(WINDOW *w, enum tetrimino_type type, int y_offset)
+void
+render_tetrimino(WINDOW *w, enum tetrimino_type type, int y_offset)
 {
 	for (int n = 0; n < 4; ++n) {
 		const int *offset = ROTATIONS[type][0][n];
@@ -200,7 +205,8 @@ void render_tetrimino(WINDOW *w, enum tetrimino_type type, int y_offset)
 
 /* renders the active tetrimino as either a ghost piece or regular piece. This
  * duplication is due to cells not being rendered above row 20 */
-void render_active_tetrimino(game *game, bool ghost)
+void
+render_active_tetrimino(const game *game, bool ghost)
 {
 	for (int n = 0; n < 4; ++n) {
 		const int *offset = ROTATIONS[game->tetrimino.type][game->tetrimino.rotation][n];
@@ -218,7 +224,8 @@ void render_active_tetrimino(game *game, bool ghost)
 	}
 }
 
-void render_grid(game *game)
+void
+render_grid(const game *game)
 {
 	for (int y = 0; y < MAX_ROW; ++y) {
 		wmove(windows[GRID], 1 + y, 1);
@@ -239,17 +246,19 @@ void render_grid(game *game)
 	wrefresh(windows[GRID]);
 }
 
-void render_preview(game *game)
+void
+render_preview(const game *game)
 {
 	werase(windows[PREVIEW]);
 	for (int p = 0; p < N_PREVIEW; ++p)
-		render_tetrimino(windows[PREVIEW], game_get_preview(game, p), p * 3);
+		render_tetrimino(windows[PREVIEW], game_preview(game, p), p * 3);
 
 	box(windows[PREVIEW], 0, 0);
 	wrefresh(windows[PREVIEW]);
 }
 
-void render_hold(game *game)
+void
+render_hold(const game *game)
 {
 	werase(windows[HOLD]);
 	render_tetrimino(windows[HOLD], game->hold, 0);
@@ -257,7 +266,8 @@ void render_hold(game *game)
 	wrefresh(windows[HOLD]);
 }
 
-void render_info(game *game) {
+void
+render_info(const game *game) {
 	werase(windows[INFO]);
 	mvwprintw(windows[INFO], 1, 1, "Lines: %d", game->lines_cleared);
 	mvwprintw(windows[INFO], 2, 1, "Level: %d", game->level);
