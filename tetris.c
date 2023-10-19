@@ -46,6 +46,11 @@ const enum tetrimino_type ROTATIONS[7][4][4][2] = {
 /* kicktable mappings:
  * KICKTABLE[is_I piece][direction][rotation][tests][offsets]
  *
+ * 1st test is for wallkicks (left and right)
+ * 2nd test is for floorkicks
+ * 3rd test is for right well kicks
+ * 4th test is for left well kicks
+ * 
  * These are alternative rotations to try when the standard one fails.
  * There are 4 test cases done in order and choosing them depends on:
  * the rotation you are rotating from and the rotation you are rotating to,
@@ -114,12 +119,21 @@ block_valid(int grid[MAX_ROW][MAX_COL], int x, int y)
 	return x >= 0 && x < MAX_COL && y < MAX_ROW && (y < 0 || grid[y][x] == EMPTY);
 }
 
-/* Check if a row is filled (No EMPTY blocks) */
 static bool
 row_filled(int grid[MAX_ROW][MAX_COL], int row)
 {
 	for (int n = 0; n < MAX_COL; ++n) {
 		if (grid[row][n] == EMPTY)
+			return false;
+	}
+	return true;
+}
+
+static bool
+row_empty(int grid[MAX_ROW][MAX_COL], int row)
+{
+	for (int n = 0; n < MAX_COL; ++n) {
+		if (grid[row][n] != EMPTY)
 			return false;
 	}
 	return true;
@@ -266,6 +280,26 @@ game_clear_rows(game *game, int row)
 	
 	int combo_extra = game->combo > 0 ? game->combo : 0;
 	game->score += 50 * game->combo * combo_extra * game->level;
+
+	/* perfect line clears */
+	if (row_empty(game->grid, MAX_ROW)) {
+		int score = 0;
+		switch (lines) {
+		case 1: 
+			score = 800;
+			break;
+		case 2:
+			score = 1200;
+			break;
+		case 3:
+			score = 1800;
+			break;
+		case 4:
+			score = 2000;
+			break;
+		}
+		game->score += score * game->level;
+	}
 }
 
 /* Place the active tetrimino and check for and handle line clears */
