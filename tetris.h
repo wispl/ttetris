@@ -34,10 +34,11 @@ struct tetrimino {
 };
 
 /* Game structure, holds all revelant information related to a game */
-typedef struct {
+struct game {
 	/* state of the grid, contains only placed pieces and emtpty cells */
 	enum tetrimino_type grid[MAX_ROW][MAX_COL];
 	bool has_lost;
+	bool running;
 
 	/* current piece */
 	struct tetrimino tetrimino;
@@ -75,28 +76,12 @@ typedef struct {
 	int lines_cleared;
 	int score;
 	int combo;
-} game;
+};
 
-game *game_create();
-void game_reset(game* game);
-void game_destroy(game *game);
+struct game *game_create();
+void game_destroy(struct game *game);
 
-/* Updates tetrimino according to gravity */
-void game_update(game *game);
-
-/* Get the tetrimino type of the prevew at index, wrapping around BAGSIZE. */
-enum tetrimino_type game_preview(const game *game, int index);
-
-/* Drop the tetrimino down as far as possible */
-void game_harddrop(game *game);
-
-/* Move the tetrimino by offset, accounting for collision checks */
-void game_move(game *game, int x_offset, int y_offset);
-
-/* Hold the tetrimino, can only be used once per piece */
-void game_hold(game *game);
-
-/* Rotate the tetrimino, handling SRS and kicktables */
-void game_rotate(game *game, int rotate_by);
-
+void game_input(struct game *game);
+void game_update(struct game *game);
+void game_render(const struct game *game);
 #endif /* TETRIS_H */

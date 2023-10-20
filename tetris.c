@@ -1,5 +1,14 @@
 #include "tetris.h"
 
+#include "term.h"
+
+/* TODO: investigate not having to do double ncurses imports */
+#ifdef __linux__
+#include <ncurses.h>
+#elif _WIN32
+#include <ncurses/ncurses.h>
+#endif
+
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -113,14 +122,14 @@ diff_timespec(const struct timespec *t1, const struct timespec *t0)
 /* TODO: Look into passing in game* insead of just grid */
 /* Check if a block is valid (in-bounds and on a free cell) */
 static inline bool
-block_valid(int grid[MAX_ROW][MAX_COL], int x, int y)
+block_valid(enum tetrimino_type grid[MAX_ROW][MAX_COL], int x, int y)
 {
 	/* even though rows above 0 is hidden, it is still valid */
 	return x >= 0 && x < MAX_COL && y < MAX_ROW && (y < 0 || grid[y][x] == EMPTY);
 }
 
 static bool
-row_filled(int grid[MAX_ROW][MAX_COL], int row)
+row_filled(enum tetrimino_type grid[MAX_ROW][MAX_COL], int row)
 {
 	for (int n = 0; n < MAX_COL; ++n) {
 		if (grid[row][n] == EMPTY)
@@ -130,7 +139,7 @@ row_filled(int grid[MAX_ROW][MAX_COL], int row)
 }
 
 static bool
-row_empty(int grid[MAX_ROW][MAX_COL], int row)
+row_empty(enum tetrimino_type grid[MAX_ROW][MAX_COL], int row)
 {
 	for (int n = 0; n < MAX_COL; ++n) {
 		if (grid[row][n] != EMPTY)
@@ -140,7 +149,7 @@ row_empty(int grid[MAX_ROW][MAX_COL], int row)
 }
 
 static void
-move_row(int grid[MAX_ROW][MAX_COL], int from, int to)
+move_row(enum tetrimino_type grid[MAX_ROW][MAX_COL], int from, int to)
 {
 	for (int c = 0; c < MAX_COL; ++c) {
 		grid[to][c] = grid[from][c];
@@ -149,7 +158,7 @@ move_row(int grid[MAX_ROW][MAX_COL], int from, int to)
 }
 
 static void
-clear_row(int grid[MAX_ROW][MAX_COL], int row)
+clear_row(enum tetrimino_type grid[MAX_ROW][MAX_COL], int row)
 {
 	for (int c = 0; c < MAX_COL; ++c)
 		grid[row][c] = EMPTY;
@@ -157,7 +166,7 @@ clear_row(int grid[MAX_ROW][MAX_COL], int row)
 
 /* Check if the active tetrimino is valid at the given rotation and offset */
 static bool
-game_tetrimino_valid(const game *game, int rotation, int x_offset, int y_offset)
+game_tetrimino_valid(const struct game *game, int rotation, int x_offset, int y_offset)
 {
 	for (int n = 0; n < 4; ++n) {
 		const int *offsets = ROTATIONS[game->tetrimino.type][rotation][n];
@@ -175,7 +184,7 @@ game_tetrimino_valid(const game *game, int rotation, int x_offset, int y_offset)
  * coordinates of the active piece changes, so during rotation, movement, and
  * spawning a new piece */
 static int
-get_ghost_offset(const game *game)
+get_ghost_offset(const struct game *game)
 {
 	int y = 0;
 	while (game_tetrimino_valid(game, game->tetrimino.rotation, 0, y + 1))
@@ -199,7 +208,7 @@ bag_shuffle(enum tetrimino_type bag[BAGSIZE])
 
 /* Get the next tetrimino from the bag and handles shuffling */
 static enum tetrimino_type
-game_next_tetrimino(game *game)
+game_next_tetrimino(struct game *game)
 {
 	/* store the piece, but replace its index with a shuffled piece, this
 	 * allows for previews near the end of the queue */
@@ -218,7 +227,7 @@ game_next_tetrimino(game *game)
 
 /* Spawn a new tetrimino piece with the given type into the grid */
 static void
-spawn_tetrimino(game *game, enum tetrimino_type type)
+spawn_tetrimino(struct game *game, enum tetrimino_type type)
 {
 	game->tetrimino.type = type;
 	game->tetrimino.rotation = 0;
@@ -240,7 +249,7 @@ spawn_tetrimino(game *game, enum tetrimino_type type)
  * To avoid shifting unchanged rows, only rows above the given row will be
  * checked and shifted */
 static void
-game_clear_rows(game *game, int row)
+game_clear_rows(struct game *game, int row)
 {
 	/* head will move up the array, removing filled rows and moving
 	 * non-filled rows to the tail at the top of the stack */
@@ -304,7 +313,7 @@ game_clear_rows(game *game, int row)
 
 /* Place the active tetrimino and check for and handle line clears */
 static void
-game_place_tetrimino(game *game)
+game_place_tetrimino(struct game *game)
 {
 	/* Check for line clears and get the lowest row which was cleared */
 	bool rows_filled = false;
@@ -344,8 +353,8 @@ game_place_tetrimino(game *game)
 
 /*** Game controls ***/
 
-void
-game_move(game *game, int x_offset, int y_offset)
+static void
+game_move(struct game *game, int x_offset, int y_offset)
 {
 	/* this is used for user controls so we check bounds */
 	if (game_tetrimino_valid(game, game->tetrimino.rotation, x_offset, y_offset)) {
@@ -359,8 +368,8 @@ game_move(game *game, int x_offset, int y_offset)
 	}
 }
 
-void
-game_rotate(game *game, int rotate_by)
+static void
+game_rotate(struct game *game, int rotate_by)
 {
 	/* wrap around 3, substitute for modulus when used on powers of 2 */
 	int rotation = (game->tetrimino.rotation + rotate_by) & 3;
@@ -390,8 +399,8 @@ game_rotate(game *game, int rotate_by)
 	/* rotation failed, no change occurs */
 }
 
-void
-game_harddrop(game *game)
+static void
+game_harddrop(struct game *game)
 {
 	/* add two points for each cell harddropped */
 	game->score += get_ghost_offset(game) * 2;
@@ -400,8 +409,8 @@ game_harddrop(game *game)
 	game_place_tetrimino(game);
 }
 
-void
-game_hold(game *game)
+static void
+game_hold(struct game *game)
 {
 	/* user is not allow to hold twice in a row */
 	if (game->has_held)
@@ -419,16 +428,78 @@ game_hold(game *game)
 		spawn_tetrimino(game, game_next_tetrimino(game));
 }
 
-/*** Game states ***/
-
-inline enum tetrimino_type
-game_preview(const game *game, int index)
+/* reset game to its initial state and prepare for a new game */
+static void
+game_reset(struct game *game)
 {
-	return game->bag[(game->bag_index + index) % BAGSIZE];
+	game->running = true;
+	game->hold = EMPTY;
+	game->has_held = false;
+	game->accumulator = 0.0F;
+	game->piece_lock = false;
+	game->bag_index = 0;
+	game->has_lost = false;
+	game->level = 1;
+	game->lines_cleared = 0;
+	game->score = 0;
+	game->combo = -1;
+
+	for (int y = 0; y < MAX_ROW; ++y) {
+		for (int x = 0; x < MAX_COL; ++x)
+			game->grid[y][x] = EMPTY;
+	}
+
+	bag_shuffle(game->bag);
+	bag_shuffle(game->shuffle_bag);
+
+	/* set previous time frame to prevent instant gravity on first frame */
+	clock_gettime(CLOCK_MONOTONIC, &game->time_prev);
+	spawn_tetrimino(game, game_next_tetrimino(game));
+}
+
+/*** Game loop ***/
+
+void
+game_input(struct game *game)
+{
+	switch (getch()) {
+	case KEY_LEFT:
+		game_move(game, -1, 0);
+		break;
+	case KEY_RIGHT:
+		game_move(game, 1, 0);
+		break;
+	case KEY_UP:
+		game_move(game, 0, 1);
+		break;
+	case KEY_DOWN:
+		game_harddrop(game);
+		break;
+	case 'x':
+		game_rotate(game, 1);
+		break;
+	case 'z':
+		game_rotate(game, -1);
+		break;
+	case 'c':
+		game_hold(game);
+		render_hold(game);
+		break;
+	case 'r':
+		game_reset(game);
+		break;
+	case 'q':
+		game->running = false;
+		break;
+	}
+
+	/* TODO: this is kind of random */
+	render_info(game);
+	render_preview(game);
 }
 
 void
-game_update(game *game)
+game_update(struct game *game)
 {
 	struct timespec time_now;
 	clock_gettime(CLOCK_MONOTONIC, &time_now);
@@ -459,10 +530,20 @@ game_update(game *game)
 	}
 }
 
-game *
+void
+game_render(const struct game *game)
+{
+	if (game->has_lost)
+		render_gameover(game);
+	else 
+		/* grid changes practically every frame, so always render it */
+		render_grid(game);
+}
+
+struct game *
 game_create()
 {
-	game *game = malloc(sizeof(*game));
+	struct game *game = malloc(sizeof(*game));
 
 	/* seed random */
 	srand(time(NULL));
@@ -473,39 +554,15 @@ game_create()
 	memcpy(game->shuffle_bag, initial_bag, sizeof(initial_bag));
 
 	game_reset(game);
+
+	term_init();
+
 	return game;
 }
 
-/* reset game to its initial state and prepare for a new game */
 void
-game_reset(game *game)
+game_destroy(struct game *game)
 {
-	game->hold = EMPTY;
-	game->has_held = false;
-	game->accumulator = 0.0F;
-	game->piece_lock = false;
-	game->bag_index = 0;
-	game->has_lost = false;
-	game->level = 1;
-	game->lines_cleared = 0;
-	game->score = 0;
-	game->combo = -1;
-
-	for (int y = 0; y < MAX_ROW; ++y) {
-		for (int x = 0; x < MAX_COL; ++x)
-			game->grid[y][x] = EMPTY;
-	}
-
-	bag_shuffle(game->bag);
-	bag_shuffle(game->shuffle_bag);
-
-	/* set previous time frame to prevent instant gravity on first frame */
-	clock_gettime(CLOCK_MONOTONIC, &game->time_prev);
-	spawn_tetrimino(game, game_next_tetrimino(game));
-}
-
-void
-game_destroy(game *game)
-{
+	term_destroy();
 	free(game);
 }
