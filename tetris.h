@@ -15,7 +15,6 @@
 #define LOCK_DELAY  0.5F
 
 enum tetrimino_type { EMPTY = -1, I, J, L, O, S, T, Z };
-extern enum tetrimino_type type;
 
 /* rotation mapping, indexed by [type][rotation][block][offset][x or y] */
 extern const enum tetrimino_type ROTATIONS[7][4][4][2];

@@ -2,17 +2,9 @@
 
 #include "term.h"
 
-/* TODO: investigate not having to do double ncurses imports */
-#ifdef __linux__
-#include <ncurses.h>
-#elif _WIN32
-#include <ncurses/ncurses.h>
-#endif
-
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <math.h>
 
  /* Tetris game logic */
 
@@ -100,15 +92,13 @@ const int KICKTABLE[2][2][4][4][2] = {
 		
 	}};
 
-/*** Time related ***/
-
-/* returns the time it takes for a tetrimino to move down one row */
-static inline float
-get_gravity_speed(int level)
-{
-	/* TODO: Look into storing precomputed values */
-	return powf(0.8 - ((level - 1) * 0.007), level - 1);
-}
+/* time for piece to drop based on level. 
+ * After level 20, the gravity is constant*/
+const float gravity_table[20] = {
+	1.00000F, 0.79300F, 0.61780F, 0.47273F, 0.35520F, 0.26200F, 0.18968F,
+	0.13473F, 0.09388F, 0.06415F, 0.04298F, 0.02822F, 0.01815F, 0.01144F,
+	0.00706F, 0.00426F, 0.00252F, 0.00146F, 0.00082F, 0.00046F,
+};
 
 /* returns difference of time in seconds */
 static inline float
@@ -462,35 +452,37 @@ game_reset(struct game *game)
 void
 game_input(struct game *game)
 {
-	switch (getch()) {
-	case KEY_LEFT:
+	switch (term_input()) {
+	case MOVE_LEFT:
 		game_move(game, -1, 0);
 		break;
-	case KEY_RIGHT:
+	case MOVE_RIGHT:
 		game_move(game, 1, 0);
 		break;
-	case KEY_UP:
+	case SOFTDROP:
 		game_move(game, 0, 1);
 		break;
-	case KEY_DOWN:
+	case HARDDROP:
 		game_harddrop(game);
 		break;
-	case 'x':
+	case ROTATE_CW:
 		game_rotate(game, 1);
 		break;
-	case 'z':
+	case ROTATE_CCW:
 		game_rotate(game, -1);
 		break;
-	case 'c':
+	case HOLD_PIECE:
 		game_hold(game);
 		render_hold(game);
 		break;
-	case 'r':
+	case RESTART:
 		game_reset(game);
 		break;
-	case 'q':
+	case QUIT:
 		game->running = false;
 		break;
+	default:
+		return;
 	}
 
 	/* TODO: this is kind of random */
@@ -510,9 +502,9 @@ game_update(struct game *game)
 
 	/* check if tetrimino can be moved down by gravity */
 	if (game_tetrimino_valid(game, game->tetrimino.rotation, 0, 1)) {
-		float gravity = get_gravity_speed(game->level);
-		if (game->accumulator > gravity) {
-			game->accumulator -= gravity;
+		int i = game->level > 20 ? 20 : game->level - 1;
+		if (game->accumulator > gravity_table[i]) {
+			game->accumulator -= gravity_table[i];
 			game->tetrimino.y += 1;
 		}
 	} else {

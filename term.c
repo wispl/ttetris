@@ -8,6 +8,9 @@
 #include <ncurses/ncurses.h>
 #endif
 
+/* TUI, rendering and input */
+
+/* constants for rendering */
 #define BORDER_WIDTH  1
 #define CELL_WIDTH    2
 
@@ -68,43 +71,6 @@ render_active_tetrimino(const struct game *game, bool ghost)
 		mvwaddch(windows[GRID], BORDER_WIDTH + y, BORDER_WIDTH + x, c);
 		waddch(windows[GRID], c);
 	}
-}
-
-void
-term_init()
-{
-    /* ncurses initialization */
-    initscr();
-    cbreak();
-    noecho();
-    curs_set(0);
-    keypad(stdscr, TRUE);
-    nodelay(stdscr, TRUE);
-
-	/* TODO: add check if terminal supports color */
-	start_color();
-	/* add 2 because 0 is invalid and the enums start from -1 */
-	init_pair(EMPTY + 2, COLOR_BLACK, COLOR_BLACK);
-	init_pair(I + 2, COLOR_CYAN, COLOR_BLACK);
-	init_pair(J + 2, COLOR_BLUE, COLOR_BLACK);
-	init_pair(L + 2, COLOR_WHITE, COLOR_BLACK);
-	init_pair(O + 2, COLOR_YELLOW, COLOR_BLACK);
-	init_pair(S + 2, COLOR_GREEN, COLOR_BLACK);
-	init_pair(T + 2, COLOR_MAGENTA, COLOR_BLACK);
-	init_pair(Z + 2, COLOR_RED, COLOR_BLACK);
-
-    windows[GRID] = newwin(GRID_H, GRID_W, GRID_Y, GRID_X);
-    windows[HOLD] = newwin(BOX_H, BOX_W, GRID_Y, GRID_X - BOX_W - 5);
-    windows[INFO] = newwin(INFO_H, INFO_W, LINES / 2, GRID_X - INFO_W);
-
-    windows[PREVIEW] = newwin(N_PREVIEW * BOX_H, BOX_W, GRID_Y, GRID_X + GRID_W);
-}
-
-void
-term_destroy()
-{
-	wclear(stdscr);
-	endwin();
 }
 
 void
@@ -169,4 +135,57 @@ render_gameover(const struct game* game)
     mvwprintw(windows[GRID], 5, 5, "You lost!\n Press R to restart");
     box(windows[GRID], 0, 0);
     wrefresh(windows[GRID]);
+}
+
+enum action term_input()
+{
+	switch (getch()) {
+	case KEY_LEFT:   return MOVE_LEFT;
+	case KEY_RIGHT:  return MOVE_RIGHT;
+	case KEY_UP:     return SOFTDROP;
+	case KEY_DOWN:   return HARDDROP;
+	case 'x': 		 return ROTATE_CW;
+	case 'z': 		 return ROTATE_CCW;
+	case 'c': 		 return HOLD_PIECE;
+	case 'r': 		 return RESTART;
+	case 'q': 		 return QUIT;
+	default: 		 return OTHER;
+	}
+}
+
+void
+term_init()
+{
+    /* ncurses initialization */
+    initscr();
+    cbreak();
+    noecho();
+    curs_set(0);
+    keypad(stdscr, TRUE);
+    nodelay(stdscr, TRUE);
+
+	/* TODO: add check if terminal supports color */
+	start_color();
+	/* add 2 because 0 is invalid and the enums start from -1 */
+	init_pair(EMPTY + 2, COLOR_BLACK, COLOR_BLACK);
+	init_pair(I + 2, COLOR_CYAN, COLOR_BLACK);
+	init_pair(J + 2, COLOR_BLUE, COLOR_BLACK);
+	init_pair(L + 2, COLOR_WHITE, COLOR_BLACK);
+	init_pair(O + 2, COLOR_YELLOW, COLOR_BLACK);
+	init_pair(S + 2, COLOR_GREEN, COLOR_BLACK);
+	init_pair(T + 2, COLOR_MAGENTA, COLOR_BLACK);
+	init_pair(Z + 2, COLOR_RED, COLOR_BLACK);
+
+    windows[GRID] = newwin(GRID_H, GRID_W, GRID_Y, GRID_X);
+    windows[HOLD] = newwin(BOX_H, BOX_W, GRID_Y, GRID_X - BOX_W - 5);
+    windows[INFO] = newwin(INFO_H, INFO_W, LINES / 2, GRID_X - INFO_W);
+
+    windows[PREVIEW] = newwin(N_PREVIEW * BOX_H, BOX_W, GRID_Y, GRID_X + GRID_W);
+}
+
+void
+term_destroy()
+{
+	wclear(stdscr);
+	endwin();
 }
