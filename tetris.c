@@ -1,14 +1,36 @@
 #include "tetris.h"
 
-#include "term.h"
-
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
- /* Tetris game logic */
+#ifdef __linux__
+#include <ncurses.h>
+#elif _WIN32
+#include <ncurses/ncurses.h>
+#endif
 
-const enum tetrimino_type ROTATIONS[7][4][4][2] = {
+#define BORDER_WIDTH  1
+#define CELL_WIDTH    2
+
+#define GRID_X        (COLS / 2) - (MAX_ROW / 2)
+#define GRID_Y        (LINES - MAX_ROW) / 2
+#define GRID_H        MAX_ROW + 2 * BORDER_WIDTH
+#define GRID_W        MAX_COL * CELL_WIDTH + BORDER_WIDTH * 2
+
+/* space needed to place tetrmino within a box */
+#define BOX_W         4 * CELL_WIDTH + 2 * BORDER_WIDTH
+#define BOX_H         3 + 2 * BORDER_WIDTH
+
+#define INFO_W        20
+#define INFO_H        8
+
+enum window_type { GRID, PREVIEW, HOLD, INFO, NWINDOWS };
+static WINDOW* windows[NWINDOWS];
+
+/* rotation mapping, indexed by [type][rotation][block][offset][x or y] */
+
+static const enum tetrimino_type ROTATIONS[7][4][4][2] = {
 	[I] = {{{0, 1}, {1, 1}, {2, 1}, {3, 1}},
 	       {{2, 0}, {2, 1}, {2, 2}, {2, 3}},
 	       {{3, 2}, {2, 2}, {1, 2}, {0, 2}},
@@ -60,7 +82,7 @@ const enum tetrimino_type ROTATIONS[7][4][4][2] = {
  * These are organized so you can find the right rotation using
  * the current rotation of the tetrimino.
  */
-const int KICKTABLE[2][2][4][4][2] = {
+static const int KICKTABLE[2][2][4][4][2] = {
 	/* mappings for "J L S Z T" */
 	{ 
 		/* counterclockwise */
@@ -94,7 +116,7 @@ const int KICKTABLE[2][2][4][4][2] = {
 
 /* time for piece to drop based on level. 
  * After level 20, the gravity is constant*/
-const float gravity_table[20] = {
+static const float gravity_table[20] = {
 	1.00000F, 0.79300F, 0.61780F, 0.47273F, 0.35520F, 0.26200F, 0.18968F,
 	0.13473F, 0.09388F, 0.06415F, 0.04298F, 0.02822F, 0.01815F, 0.01144F,
 	0.00706F, 0.00426F, 0.00252F, 0.00146F, 0.00082F, 0.00046F,
@@ -105,6 +127,115 @@ static inline float
 diff_timespec(const struct timespec *t1, const struct timespec *t0)
 {
 	return (t1->tv_sec - t0->tv_sec) + (t1->tv_nsec - t0->tv_nsec) * 1e-9;
+}
+
+/*** Rendering ***/
+
+/* chtype for rendering block of given tetrimino type */
+static inline chtype
+block_chtype(enum tetrimino_type type)
+{
+	return ' ' | A_REVERSE | COLOR_PAIR(type + 2);
+}
+
+/* renders a tetrimino of type with offset y, this renders *any* tetrimino */
+static void
+render_tetrimino(WINDOW *w, enum tetrimino_type type, int y_offset)
+{
+	for (int n = 0; n < 4; ++n) {
+		const int *offset = ROTATIONS[type][0][n];
+		int x = BORDER_WIDTH + (offset[0] * 2);
+		int y = BORDER_WIDTH + offset[1] + y_offset;
+		int c = block_chtype(type);
+
+		mvwaddch(w, y, x, c);
+		waddch(w, c);
+	}
+}
+
+/* renders the active tetrimino as either a ghost piece or regular piece. This
+ * duplication is due to cells not being rendered above row 20 */
+static void
+render_active_tetrimino(const struct game *game, bool ghost)
+{
+	for (int n = 0; n < 4; ++n) {
+		const int *offset = ROTATIONS[game->tetrimino.type][game->tetrimino.rotation][n];
+
+		int x = (game->tetrimino.x + offset[0]) * 2;
+		int y = (ghost ? game->ghost_y : game->tetrimino.y) + offset[1];
+		int c = ghost ? '/' : block_chtype(game->tetrimino.type);
+
+		/* do not render rows above 0 */
+		if (y < 0)
+			continue;
+
+		mvwaddch(windows[GRID], BORDER_WIDTH + y, BORDER_WIDTH + x, c);
+		waddch(windows[GRID], c);
+	}
+}
+
+static void
+render_grid(const struct game *game)
+{
+	for (int y = 0; y < MAX_ROW; ++y) {
+		wmove(windows[GRID], 1 + y, 1);
+		for (int x = 0; x < MAX_COL; ++x) {
+			chtype c = block_chtype(game->grid[y][x]);
+			waddch(windows[GRID], c);
+			waddch(windows[GRID], c);
+		}
+	}
+
+	/* Order is important, current piece should shadow the ghost piece */
+	/* Ghost piece*/
+	render_active_tetrimino(game, true);
+	/* Current piece */
+	render_active_tetrimino(game, false);
+
+	box(windows[GRID], 0, 0);
+	wrefresh(windows[GRID]);
+}
+
+static void
+render_preview(const struct game *game)
+{
+	werase(windows[PREVIEW]);
+	for (int p = 0; p < N_PREVIEW; ++p) {
+		enum tetrimino_type type = game->bag[(game->bag_index + p) % BAGSIZE];
+		render_tetrimino(windows[PREVIEW], type, p * 3);
+	}
+
+	box(windows[PREVIEW], 0, 0);
+	wrefresh(windows[PREVIEW]);
+}
+
+static void
+render_hold(const struct game *game)
+{
+	werase(windows[HOLD]);
+	render_tetrimino(windows[HOLD], game->hold, 0);
+	box(windows[HOLD], 0, 0);
+	wrefresh(windows[HOLD]);
+}
+
+static void
+render_info(const struct game *game)
+{
+	werase(windows[INFO]);
+	mvwprintw(windows[INFO], 1, 1, "Lines: %d", game->lines_cleared);
+	mvwprintw(windows[INFO], 2, 1, "Level: %d", game->level);
+	mvwprintw(windows[INFO], 3, 1, "Score: %d", game->score);
+	mvwprintw(windows[INFO], 4, 1, "Combo: %d", game->combo);
+	wrefresh(windows[INFO]);
+}
+
+static void
+render_gameover(const struct game* game)
+{
+    werase(windows[GRID]);
+    mvwprintw(windows[GRID], 5, 5, "You lost!\n Press R to restart");
+    box(windows[GRID], 0, 0);
+    wrefresh(windows[GRID]);
 }
 
 /*** Grid manipulation and checks ***/
@@ -452,33 +583,33 @@ game_reset(struct game *game)
 void
 game_input(struct game *game)
 {
-	switch (term_input()) {
-	case MOVE_LEFT:
+	switch (getch()) {
+	case KEY_LEFT:
 		game_move(game, -1, 0);
 		break;
-	case MOVE_RIGHT:
+	case KEY_RIGHT:
 		game_move(game, 1, 0);
 		break;
-	case SOFTDROP:
+	case KEY_UP:
 		game_move(game, 0, 1);
 		break;
-	case HARDDROP:
+	case KEY_DOWN:
 		game_harddrop(game);
 		break;
-	case ROTATE_CW:
+	case 'x':
 		game_rotate(game, 1);
 		break;
-	case ROTATE_CCW:
+	case 'z':
 		game_rotate(game, -1);
 		break;
-	case HOLD_PIECE:
+	case 'c':
 		game_hold(game);
 		render_hold(game);
 		break;
-	case RESTART:
+	case 'r':
 		game_reset(game);
 		break;
-	case QUIT:
+	case 'q':
 		game->running = false;
 		break;
 	default:
@@ -535,6 +666,32 @@ game_render(const struct game *game)
 struct game *
 game_create()
 {
+    /* ncurses initialization */
+    initscr();
+    cbreak();
+    noecho();
+    curs_set(0);
+    keypad(stdscr, TRUE);
+    nodelay(stdscr, TRUE);
+
+	/* TODO: add check if terminal supports color */
+	start_color();
+	/* add 2 because 0 is invalid and the enums start from -1 */
+	init_pair(EMPTY + 2, COLOR_BLACK, COLOR_BLACK);
+	init_pair(I + 2, COLOR_CYAN, COLOR_BLACK);
+	init_pair(J + 2, COLOR_BLUE, COLOR_BLACK);
+	init_pair(L + 2, COLOR_WHITE, COLOR_BLACK);
+	init_pair(O + 2, COLOR_YELLOW, COLOR_BLACK);
+	init_pair(S + 2, COLOR_GREEN, COLOR_BLACK);
+	init_pair(T + 2, COLOR_MAGENTA, COLOR_BLACK);
+	init_pair(Z + 2, COLOR_RED, COLOR_BLACK);
+
+    windows[GRID] = newwin(GRID_H, GRID_W, GRID_Y, GRID_X);
+    windows[HOLD] = newwin(BOX_H, BOX_W, GRID_Y, GRID_X - BOX_W - 5);
+    windows[INFO] = newwin(INFO_H, INFO_W, LINES / 2, GRID_X - INFO_W);
+
+    windows[PREVIEW] = newwin(N_PREVIEW * BOX_H, BOX_W, GRID_Y, GRID_X + GRID_W);
+
 	struct game *game = malloc(sizeof(*game));
 
 	/* seed random */
@@ -547,14 +704,14 @@ game_create()
 
 	game_reset(game);
 
-	term_init();
-
 	return game;
 }
 
 void
 game_destroy(struct game *game)
 {
-	term_destroy();
 	free(game);
+
+	wclear(stdscr);
+	endwin();
 }
