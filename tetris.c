@@ -736,6 +736,11 @@ game_running()
 void
 game_init()
 {
+	if (game.running) {
+		fprintf(stderr, "ERROR: game and ncurses was initialized twice!");
+		abort();
+	}
+
     /* ncurses initialization */
     initscr();
     cbreak();
