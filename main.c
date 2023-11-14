@@ -1,5 +1,7 @@
 #include "tetris.h"
 
+#include <stdbool.h>
+
 #define MINIAUDIO_IMPLEMENTATION
 #include "extern/miniaudio.h"
 
@@ -18,8 +20,7 @@ data_callback(ma_device* device, void* output, const void* input, ma_uint32 fram
 int
 main(void)
 {
-    struct game *game = game_create();
-
+    game_init();
 	/* audio */
 	ma_result result;
 	ma_decoder decoder;
@@ -53,14 +54,14 @@ main(void)
         return -1;
     }
 
-    while (game->running) {
-		game_input(game);
-		game_update(game);
-		game_render(game);
+    while (game_running()) {
+		game_input();
+		game_update();
+		game_render();
 	}
 
 	ma_device_uninit(&device);
 	ma_decoder_uninit(&decoder);
-	game_destroy(game);
+	game_destroy();
 	return 0;
 }
