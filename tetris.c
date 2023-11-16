@@ -1,5 +1,6 @@
 #include "tetris.h"
 
+#include <assert.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
@@ -50,16 +51,13 @@ struct tetrimino {
 struct game_state {
 	/* state of the grid, contains only placed pieces and emtpty cells */
 	enum tetrimino_type grid[MAX_ROW][MAX_COL];
+
 	bool has_lost;
 	bool running;
 
 	/* current piece */
 	struct tetrimino tetrimino;
-
-	/* absolute y-coordinate of the ghost piece 
-	 * The ghost piece has the same rotation as the active piece
-	 * just at the bottom of the stack
-	 */
+	/* y-coordinate of the ghost piece */
 	int ghost_y;
 
 	/* collected delta times used for updating physics */
@@ -180,15 +178,13 @@ static const int KICKTABLE[2][2][4][4][2] = {
 		
 	}};
 
-/* time for piece to drop based on level. 
- * After level 20, the gravity is constant*/
+/* time for piece to drop based on level. Gravity is constant past level 20 */
 static const float gravity_table[20] = {
 	1.00000F, 0.79300F, 0.61780F, 0.47273F, 0.35520F, 0.26200F, 0.18968F,
 	0.13473F, 0.09388F, 0.06415F, 0.04298F, 0.02822F, 0.01815F, 0.01144F,
 	0.00706F, 0.00426F, 0.00252F, 0.00146F, 0.00082F, 0.00046F,
 };
 
-/* returns difference of time in seconds */
 static inline float
 diff_timespec(const struct timespec *t1, const struct timespec *t0)
 {
@@ -219,8 +215,7 @@ render_tetrimino(WINDOW *w, enum tetrimino_type type, int y_offset)
 	}
 }
 
-/* renders the active tetrimino as either a ghost piece or regular piece. This
- * duplication is due to cells not being rendered above row 20 */
+/* renders the active tetrimino as either a ghost or regular piece. */
 static void
 render_active_tetrimino(bool ghost)
 {
@@ -253,9 +248,7 @@ render_grid()
 	}
 
 	/* Order is important, current piece should shadow the ghost piece */
-	/* Ghost piece*/
 	render_active_tetrimino(true);
-	/* Current piece */
 	render_active_tetrimino(false);
 
 	box(windows[GRID], 0, 0);
@@ -289,10 +282,8 @@ static void
 render_info()
 {
 	werase(windows[INFO]);
-	mvwprintw(windows[INFO], 1, 1, "Lines: %d", game.lines_cleared);
-	mvwprintw(windows[INFO], 2, 1, "Level: %d", game.level);
-	mvwprintw(windows[INFO], 3, 1, "Score: %d", game.score);
-	mvwprintw(windows[INFO], 4, 1, "Combo: %d", game.combo);
+	wprintw(windows[INFO], "Lines: %d\n" "Level: %d\n" "Score: %d\n" "Combo: %d\n",
+							game.lines_cleared, game.level, game.score, game.combo);
 	wrefresh(windows[INFO]);
 }
 
@@ -300,14 +291,13 @@ static void
 render_gameover()
 {
     werase(windows[GRID]);
-    mvwprintw(windows[GRID], 5, 5, "You lost!\n Press R to restart");
+    mvwprintw(windows[GRID], 5, 5, "You lost!\n   Press R to restart");
     box(windows[GRID], 0, 0);
     wrefresh(windows[GRID]);
 }
 
-/*** Grid manipulation and checks ***/
+/*** Grid ***/
 
-/* Check if a block is valid (in-bounds and on a free cell) */
 static inline bool
 block_valid(int x, int y)
 {
@@ -338,17 +328,17 @@ row_empty(int row)
 static void
 move_row(int from, int to)
 {
-	for (int c = 0; c < MAX_COL; ++c) {
-		game.grid[to][c] = game.grid[from][c];
-		game.grid[from][c] = EMPTY;
+	for (int n = 0; n < MAX_COL; ++n) {
+		game.grid[to][n] = game.grid[from][n];
+		game.grid[from][n] = EMPTY;
 	}
 }
 
 static void
 clear_row(int row)
 {
-	for (int c = 0; c < MAX_COL; ++c)
-		game.grid[row][c] = EMPTY;
+	for (int n = 0; n < MAX_COL; ++n)
+		game.grid[row][n] = EMPTY;
 }
 
 /* Check if the tetrimino is valid at the given rotation and offset */
@@ -364,24 +354,20 @@ tetrimino_valid(struct tetrimino *tetrimino, int rotation, int x_offset, int y_o
 	return true;
 }
 
-/*** Game state manipulation ***/
+/*** Game state ***/
 
-/* Gets the y-offset of the ghost piece, this is recalculated when the
- * coordinates of the active piece changes, so during rotation, movement, and
- * spawning a new piece */
-static int
-get_ghost_offset()
+/* Updates the ghost piece, recalculate when position of piece changes */
+static void
+update_ghost()
 {
 	int y = 0;
 	while (tetrimino_valid(&game.tetrimino, game.tetrimino.rotation, 0, y + 1))
 		++y;
-
-	return y;
+	game.ghost_y = y + game.tetrimino.y;
 }
 
-/* Shuffles the tetrimino bag in place (supports only BAGSIZE) */
 static void
-bag_shuffle(enum tetrimino_type bag[BAGSIZE])
+shuffle_bag(enum tetrimino_type bag[BAGSIZE])
 {
 	int j, tmp;
 	for (int i = BAGSIZE - 1; i > 0; --i) {
@@ -392,41 +378,33 @@ bag_shuffle(enum tetrimino_type bag[BAGSIZE])
 	}
 }
 
-/* Get the next tetrimino from the bag and handles shuffling */
 static enum tetrimino_type
 next_tetrimino()
 {
-	/* store the piece, but replace its index with a shuffled piece, this
-	 * allows for previews near the end of the queue */
+	/* replace with a piece from the shuffle bag to allow for previews */
 	enum tetrimino_type type = game.bag[game.bag_index];
 	game.bag[game.bag_index] = game.shuffle_bag[game.bag_index];
 
-	/* shuffle bag is exhausted, so shuffle it again */
-	if (game.bag_index == BAGSIZE - 1)
-		/* a 7-bag system requires shuffling all 7 types in a bag */
-		bag_shuffle(game.shuffle_bag);
-
-	/* increment and wrap around */
 	game.bag_index = (game.bag_index + 1) % BAGSIZE;
+	/* shuffle the shuffle_bag once it is exhausted */
+	if (game.bag_index == 0)
+		shuffle_bag(game.shuffle_bag);
+
 	return type;
 }
 
-/* Spawn a new tetrimino piece with the given type into the grid */
+/* Spawn a new tetrimino piece with the given type onto the grid */
 static void
 spawn_tetrimino(enum tetrimino_type type)
 {
 	game.tetrimino.type = type;
 	game.tetrimino.rotation = 0;
 
-	game.tetrimino.y = -1;
 	/* O-piece has a different starting placement */
-	if (type == O)
-		game.tetrimino.x = 4;
-	else
-		game.tetrimino.x = 3;
-	game.ghost_y = get_ghost_offset() + game.tetrimino.y;
+	game.tetrimino.x = (type == O) ? 4 : 3;
+	game.tetrimino.y = -1;
+	update_ghost();
 
-	/* reset time related settings for the next piece */
 	game.accumulator = 0.0F;
 	game.piece_lock = false;
 }
@@ -542,15 +520,12 @@ place_tetrimino()
 static void
 controls_move(int x_offset, int y_offset)
 {
-	/* this is used for user controls so we check bounds */
+	assert(y_offset >= 0 && "Tetrimino can not be moved up");
 	if (tetrimino_valid(&game.tetrimino, game.tetrimino.rotation, x_offset, y_offset)) {
 		game.tetrimino.x += x_offset;
 		game.tetrimino.y += y_offset;
-		game.ghost_y = get_ghost_offset(game) + game.tetrimino.y;
-
-		/* get one point for each cell softdropped (move down) */
-		if (y_offset > 0)
-			++game.score;
+		game.score += y_offset;
+		update_ghost();
 	}
 }
 
@@ -559,13 +534,8 @@ controls_rotate(int rotate_by)
 {
 	/* wrap around 3, substitute for modulus when used on powers of 2 */
 	int rotation = (game.tetrimino.rotation + rotate_by) & 3;
-
-	/* O-piece will alway pass because its rotation cannot failed */
-	if (tetrimino_valid(&game.tetrimino, rotation, 0, 0)) {
-		game.tetrimino.rotation = rotation;
-		game.ghost_y = get_ghost_offset(game) + game.tetrimino.y;
-		return;
-	}
+	if (tetrimino_valid(&game.tetrimino, rotation, 0, 0))
+		goto success;
 
 	/* standard rotation failed, attempt kicktable rotations */
 	int direction = rotate_by < 0 ? 0 : 1;
@@ -574,23 +544,23 @@ controls_rotate(int rotate_by)
 		const int *offset = KICKTABLE[is_I][direction][game.tetrimino.rotation][n];
 
 		if (tetrimino_valid(&game.tetrimino, rotation, offset[0], offset[1])) {
-			game.tetrimino.rotation = rotation;
 			game.tetrimino.x += offset[0];
 			game.tetrimino.y += offset[1];
-			game.ghost_y = get_ghost_offset(game) + game.tetrimino.y;
-			return;
+			goto success;
 		}
 	}
 
-	/* rotation failed, no change occurs */
+	success: {
+			game.tetrimino.rotation = rotation;
+			update_ghost();
+	}
 }
 
 static void
 controls_harddrop()
 {
 	/* add two points for each cell harddropped */
-	game.score += get_ghost_offset(game) * 2;
-	/* swap y's with the ghost piece, dropping it as far as possible */
+	game.score += (game.ghost_y - game.tetrimino.y) * 2;
 	game.tetrimino.y = game.ghost_y;
 	place_tetrimino(game);
 }
@@ -598,13 +568,10 @@ controls_harddrop()
 static void
 controls_hold()
 {
-	/* user is not allow to hold twice in a row */
 	if (game.has_held)
 		return;
 
 	game.has_held = true;
-
-	/* swap hold and current piece */
 	enum tetrimino_type hold = game.hold;
 	game.hold = game.tetrimino.type;
 
@@ -635,8 +602,8 @@ game_reset()
 			game.grid[y][x] = EMPTY;
 	}
 
-	bag_shuffle(game.bag);
-	bag_shuffle(game.shuffle_bag);
+	shuffle_bag(game.bag);
+	shuffle_bag(game.shuffle_bag);
 
 	/* set previous time frame to prevent instant gravity on first frame */
 	clock_gettime(CLOCK_MONOTONIC, &game.time_prev);
@@ -712,9 +679,8 @@ game_update()
 	}
 
 	/* piece autoplacement is independent of gravity */
-	if (game.piece_lock && diff_timespec(&time_now, &game.lock_delay) > LOCK_DELAY) {
+	if (game.piece_lock && diff_timespec(&time_now, &game.lock_delay) > LOCK_DELAY)
 		place_tetrimino();
-	}
 }
 
 void
@@ -751,7 +717,7 @@ game_init()
 
 	/* TODO: add check if terminal supports color */
 	start_color();
-	/* add 2 because 0 is invalid and the enums start from -1 */
+	/* add 2 because color pairs start at 0 and the enums start from -1 */
 	init_pair(EMPTY + 2, COLOR_BLACK, COLOR_BLACK);
 	init_pair(I + 2, COLOR_CYAN, COLOR_BLACK);
 	init_pair(J + 2, COLOR_BLUE, COLOR_BLACK);
