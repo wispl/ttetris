@@ -13,7 +13,8 @@
 #endif
 
 /* grid dimensions */
-#define MAX_ROW     20
+#define EXTRA_ROWS  2
+#define MAX_ROW     22
 #define MAX_COL     10
 
 /* bag settings */
@@ -26,7 +27,7 @@
 
 #define GRID_X        (COLS / 2) - (MAX_ROW / 2)
 #define GRID_Y        (LINES - MAX_ROW) / 2
-#define GRID_H        MAX_ROW + 2 * BORDER_WIDTH
+#define GRID_H        (MAX_ROW - 2) + 2 * BORDER_WIDTH
 #define GRID_W        MAX_COL * CELL_WIDTH + BORDER_WIDTH * 2
 
 /* space needed to place tetrmino within a box */
@@ -226,11 +227,10 @@ render_active_tetrimino(bool ghost)
 		int y = (ghost ? game.ghost_y : game.tetrimino.y) + offset[1];
 		int c = ghost ? '/' : block_chtype(game.tetrimino.type);
 
-		/* do not render rows above 0 */
-		if (y < 0)
+		if (y < 2)
 			continue;
 
-		mvwaddch(windows[GRID], BORDER_WIDTH + y, BORDER_WIDTH + x, c);
+		mvwaddch(windows[GRID], BORDER_WIDTH + y - EXTRA_ROWS, BORDER_WIDTH + x, c);
 		waddch(windows[GRID], c);
 	}
 }
@@ -238,8 +238,8 @@ render_active_tetrimino(bool ghost)
 static void
 render_grid()
 {
-	for (int y = 0; y < MAX_ROW; ++y) {
-		wmove(windows[GRID], 1 + y, 1);
+	for (int y = EXTRA_ROWS; y < MAX_ROW; ++y) {
+		wmove(windows[GRID], BORDER_WIDTH + y - EXTRA_ROWS, BORDER_WIDTH);
 		for (int x = 0; x < MAX_COL; ++x) {
 			chtype c = block_chtype(game.grid[y][x]);
 			waddch(windows[GRID], c);
@@ -301,8 +301,7 @@ render_gameover()
 static inline bool
 block_valid(int x, int y)
 {
-	/* even though rows above 0 is hidden, it is still valid */
-	return x >= 0 && x < MAX_COL && y < MAX_ROW && (y < 0 || game.grid[y][x] == EMPTY);
+	return x >= 0 && x < MAX_COL && y >= 0 && y < MAX_ROW && game.grid[y][x] == EMPTY;
 }
 
 static bool
@@ -402,7 +401,7 @@ spawn_tetrimino(enum tetrimino_type type)
 
 	/* O-piece has a different starting placement */
 	game.tetrimino.x = (type == O) ? 4 : 3;
-	game.tetrimino.y = -1;
+	game.tetrimino.y = 1;
 	update_ghost();
 
 	game.accumulator = 0.0F;
@@ -489,7 +488,7 @@ place_tetrimino()
 		int x = game.tetrimino.x + offsets[0];
 		int y = game.tetrimino.y + offsets[1];
 
-		if (y < 0) {
+		if (y < 2) {
 			game.has_lost = true;
 			return;
 		}
