@@ -131,19 +131,17 @@ static const enum tetrimino_type ROTATIONS[7][4][4][2] = {
 	       {{0, 2}, {1, 2}, {1, 1}, {2, 1}},
 	       {{0, 0}, {0, 1}, {1, 1}, {1, 2}}}};
 
-/* kicktable mappings:
- * KICKTABLE[is_I piece][direction][rotation][tests][offsets]
+/* KICKTABLE[is_I piece][direction][rotation][tests][offsets]
  *
  * 1st test is for wallkicks (left and right)
  * 2nd test is for floorkicks
  * 3rd test is for right well kicks
  * 4th test is for left well kicks
- * 
- * These are alternative rotations to try when the standard one fails.
- * There are 4 test cases done in order and choosing them depends on:
- * the rotation you are rotating from and the rotation you are rotating to,
+ *
+ * These are alternative rotations for when the standard one fails and is chosen
+ * based on: the current rotation and the desired rotation, 
  * notated as follows (from)>>(two)
- * 
+ *
  * These are organized so you can find the right rotation using
  * the current rotation of the tetrimino.
  */
@@ -192,6 +190,18 @@ diff_timespec(const struct timespec *t1, const struct timespec *t0)
 	return (t1->tv_sec - t0->tv_sec) + (t1->tv_nsec - t0->tv_nsec) * 1e-9;
 }
 
+static void
+shuffle_bag(enum tetrimino_type bag[BAGSIZE])
+{
+	int j, tmp;
+	for (int i = BAGSIZE - 1; i > 0; --i) {
+		j = rand() % (i + 1);
+		tmp = bag[j];
+		bag[j] = bag[i];
+		bag[i] = tmp;
+	}
+}
+
 /*** Rendering ***/
 
 /* chtype for rendering block of given tetrimino type */
@@ -222,12 +232,11 @@ render_active_tetrimino(bool ghost)
 {
 	for (int n = 0; n < 4; ++n) {
 		const int *offset = ROTATIONS[game.tetrimino.type][game.tetrimino.rotation][n];
-
 		int x = (game.tetrimino.x + offset[0]) * 2;
 		int y = (ghost ? game.ghost_y : game.tetrimino.y) + offset[1];
 		int c = ghost ? '/' : block_chtype(game.tetrimino.type);
 
-		if (y < 2)
+		if (y < EXTRA_ROWS) 
 			continue;
 
 		mvwaddch(windows[GRID], BORDER_WIDTH + y - EXTRA_ROWS, BORDER_WIDTH + x, c);
@@ -365,18 +374,6 @@ update_ghost()
 	game.ghost_y = y + game.tetrimino.y;
 }
 
-static void
-shuffle_bag(enum tetrimino_type bag[BAGSIZE])
-{
-	int j, tmp;
-	for (int i = BAGSIZE - 1; i > 0; --i) {
-		j = rand() % (i + 1);
-		tmp = bag[j];
-		bag[j] = bag[i];
-		bag[i] = tmp;
-	}
-}
-
 static enum tetrimino_type
 next_tetrimino()
 {
@@ -408,38 +405,13 @@ spawn_tetrimino(enum tetrimino_type type)
 	game.piece_lock = false;
 }
 
-/* Clear filled rows, and does book-keeping (points and row shifting)
- * To avoid shifting unchanged rows, only rows above the given row will be
- * checked and shifted */
+/* updates score after line clears */
 static void
-clear_rows(int row)
+update_score(int lines)
 {
-	/* head will move up the array, removing filled rows and moving
-	 * non-filled rows to the tail at the top of the stack */
-	int head = row;
-	int tail = row;
-	int lines = 0;
-
-	/* start at the first non-filled row */
-	while (!row_filled(head)) {
-		--head;
-		--tail;
-	}
-
-	while (head > 0) {
-		if (row_filled(head)) {
-			clear_row(head);
-			++game.lines_cleared;
-			++lines;
-
-			/* new level every 10 levels */
-			game.level = (game.lines_cleared / 10) + 1; 
-		} else {
-			move_row(head, tail);
-			--tail;
-		}
-		--head;
-	}
+	/* new level every 10 line clears */
+	game.lines_cleared += lines;
+	game.level = (game.lines_cleared / 10) + 1;
 
 	/* Scoring
 	 * 1 -> 100 * level 
@@ -474,39 +446,60 @@ clear_rows(int row)
 	}
 }
 
+/* Clear filled rows and shifts rows down. Returns lines cleared */
+static int
+update_rows(int row)
+{
+	/* head will move up the array, removing filled rows and moving
+	 * non-filled rows to the tail at the top of the stack */
+	int head = row;
+	int tail = row;
+	int lines = 0;
+
+	while (head > 0) {
+		if (row_filled(head)) {
+			clear_row(head);
+			++lines;
+		} else {
+			move_row(head, tail);
+			--tail;
+		}
+		--head;
+	}
+
+	return lines;
+}
+
 /* Place the active tetrimino and check for and handle line clears */
 static void
 place_tetrimino()
 {
-	/* Check for line clears and get the lowest row which was cleared */
-	bool rows_filled = false;
-	int clear_begin = 0;
+	int clear_begin = -1;
 
 	for (int n = 0; n < 4; ++n) {
 		enum tetrimino_type type = game.tetrimino.type;
 		const int *offsets = ROTATIONS[type][game.tetrimino.rotation][n];
 		int x = game.tetrimino.x + offsets[0];
 		int y = game.tetrimino.y + offsets[1];
-
-		if (y < 2) {
-			game.has_lost = true;
-			return;
-		}
 		game.grid[y][x] = type;
 
-		/* A line clear can only be on the row of the four cells */
-		if (row_filled(y)) {
-			rows_filled = true;
-			if (y > clear_begin)
-				clear_begin = y;
-		}
+		if (row_filled(y))
+			clear_begin = y > clear_begin ? y : clear_begin;
 	}
 
-	if (rows_filled) {
+	if (clear_begin != -1) {
 		++game.combo;
-		clear_rows(clear_begin);
+		int lines = update_rows(clear_begin);
+		update_score(lines);
 	} else {
 		game.combo = -1;
+	}
+
+	/* clear lines before checking if the user lost, 
+	 * sometimes a piece performs a clear before it is out of bounds */
+	if (!row_empty(1)) {
+		game.has_lost = true;
+		return;
 	}
 
 	/* get a new piece and allow the user to hold again */
