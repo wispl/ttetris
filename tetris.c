@@ -50,12 +50,11 @@ struct tetrimino {
 
 /* Game structure, holds all revelant information related to a game */
 struct game_state {
-	/* state of the grid, contains only placed pieces and emtpty cells */
-	enum tetrimino_type grid[MAX_ROW][MAX_COL];
-
 	bool has_lost;
 	bool running;
 
+	/* state of the grid, contains only placed pieces and emtpty cells */
+	enum tetrimino_type grid[MAX_ROW][MAX_COL];
 	/* current piece */
 	struct tetrimino tetrimino;
 	/* y-coordinate of the ghost piece */
@@ -70,12 +69,13 @@ struct game_state {
 	struct timespec lock_delay;
 	/* whether active tetrimino is in autoplacement state */
 	bool piece_lock;
+	int move_reset;
 
-	/* these bags are ring buffers and used for future pieces and preview */
+	/* these bags are ring buffers and used for pieces and preview */
 	int bag_index;
-	/* main bag used for preview */
+	/* bag used for piece and preview */
 	enum tetrimino_type bag[BAGSIZE];
-	/* bag used for shuffling and replacing pieces in the main bag */
+	/* bag used for shuffling and replacing pieces in main bag */
 	enum tetrimino_type shuffle_bag[BAGSIZE];
 
 	/* held piece */
@@ -403,6 +403,7 @@ spawn_tetrimino(enum tetrimino_type type)
 
 	game.accumulator = 0.0F;
 	game.piece_lock = false;
+	game.move_reset = 0;
 }
 
 /* updates score and levels after line clears */
@@ -528,6 +529,11 @@ controls_move(int x_offset, int y_offset)
 		game.tetrimino.y += y_offset;
 		game.score += y_offset;
 		update_ghost();
+
+		if (x_offset != 0 && game.move_reset < 15) {
+			++game.move_reset;
+			game.piece_lock = false;
+		}
 	}
 }
 
@@ -555,6 +561,11 @@ controls_rotate(int rotate_by)
 	success: {
 			game.tetrimino.rotation = rotation;
 			update_ghost();
+
+			if (game.move_reset < 15) {
+				++game.move_reset;
+				game.piece_lock = false;
+			}
 	}
 }
 
@@ -667,7 +678,7 @@ game_update()
 
 	/* check if tetrimino can be moved down by gravity */
 	if (tetrimino_valid(&game.tetrimino, game.tetrimino.rotation, 0, 1)) {
-		int i = game.level > 20 ? 20 : game.level - 1;
+		int i = game.level > 20 ? 19 : game.level - 1;
 		if (game.accumulator > gravity_table[i]) {
 			game.accumulator -= gravity_table[i];
 			game.tetrimino.y += 1;
