@@ -39,6 +39,7 @@
 
 enum tetrimino_type { EMPTY = -1, I, J, L, O, S, T, Z };
 enum window_type { GRID, PREVIEW, HOLD, INFO, NWINDOWS };
+enum tspin_type { TSPIN, MINI_TSPIN, NONE };
 
 /* Representation of a tetrimino */
 struct tetrimino {
@@ -362,6 +363,32 @@ tetrimino_valid(struct tetrimino *tetrimino, int rotation, int x_offset, int y_o
 	return true;
 }
 
+static enum tspin_type
+is_tspin(int kick_test) {
+	static int corners[4][2] = { {0, 0}, {2, 0}, {2, 2}, {0, 2} };
+
+	int i = game.tetrimino.rotation;
+	const int* f_left  = corners[(i + 0) & 4];
+	const int* f_right = corners[(i + 1) & 4];
+	const int* b_left   = corners[(i + 2) & 4];
+	const int* b_right  = corners[(i + 3) & 4];
+
+	bool back_corners = !block_valid(b_left[0], b_left[1]) && !block_valid(b_right[0], b_right[1]);
+	bool front_corners = !block_valid(f_left[0], f_left[1]) && !block_valid(f_right[0], f_right[1]);
+	bool one_front_corner = !block_valid(f_left[0], f_left[1]) || !block_valid(f_right[0], f_right[1]);
+	bool one_back_corner = !block_valid(b_left[0], b_left[1]) || !block_valid(b_right[0], b_right[1]);
+
+	if (front_corners && one_back_corner) {
+		return TSPIN;
+	} else if (back_corners && one_front_corner) {
+		if (kick_test == 4)
+			return TSPIN;
+		return MINI_TSPIN;
+	} else {
+		return NONE;
+	}
+}
+
 /*** Game state ***/
 
 /* Updates the ghost piece, recalculate when position of piece changes */
@@ -481,7 +508,7 @@ update_rows(int row)
 	return lines;
 }
 
-/* Place the active tetrimino and check for and handle line clears */
+/* Place the active tetrimino and handle line clears */
 static void
 place_tetrimino()
 {
@@ -540,6 +567,7 @@ controls_move(int x_offset, int y_offset)
 static void
 controls_rotate(int rotate_by)
 {
+	int kick_test;
 	/* wrap around 3, substitute for modulus when used on powers of 2 */
 	int rotation = (game.tetrimino.rotation + rotate_by) & 3;
 	if (tetrimino_valid(&game.tetrimino, rotation, 0, 0))
@@ -660,10 +688,6 @@ game_input()
 	default:
 		return;
 	}
-
-	/* TODO: this is kind of random */
-	render_info();
-	render_preview();
 }
 
 void
@@ -699,11 +723,13 @@ game_update()
 void
 game_render()
 {
-	if (game.has_lost)
+	if (game.has_lost) {
 		render_gameover();
-	else 
-		/* grid changes practically every frame, so always render it */
+	} else {
 		render_grid();
+		render_info();
+		render_preview();
+	}
 }
 
 bool
