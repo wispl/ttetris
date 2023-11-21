@@ -405,7 +405,7 @@ spawn_tetrimino(enum tetrimino_type type)
 	game.piece_lock = false;
 }
 
-/* updates score after line clears */
+/* updates score and levels after line clears */
 static void
 update_score(int lines)
 {
@@ -413,17 +413,27 @@ update_score(int lines)
 	game.lines_cleared += lines;
 	game.level = (game.lines_cleared / 10) + 1;
 
-	/* Scoring
-	 * 1 -> 100 * level 
-	 * 2 -> 300 * level 
-	 * 3 -> 500 * level
-	 * 4 -> 800 * level (also called a tetris)
-	 */
-	bool is_tetris = (lines == 4);
-	game.score += (100 + (lines - 1) * 200 + (100 * is_tetris)) * game.level;
+	/* standard line clears */
+	int score = 0;
+	switch (lines) {
+	case 1:
+		score = 100;
+		break;
+	case 2:
+		score = 300;
+		break;
+	case 3:
+		score = 500;
+		break;
+	case 4:
+		score = 800;
+		break;
+	}
+	game.score += score * game.level;
 	
-	int combo_extra = game.combo > 0 ? game.combo : 0;
-	game.score += 50 * game.combo * combo_extra * game.level;
+	/* combo bonuses */
+	int combo = game.combo == -1 ? 0: game.combo;
+	game.score += 50 * combo * game.level;
 
 	/* perfect line clears */
 	if (row_empty(MAX_ROW)) {
