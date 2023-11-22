@@ -38,8 +38,26 @@
 #define INFO_H        8
 
 enum tetrimino_type { EMPTY = -1, I, J, L, O, S, T, Z };
-enum window_type { GRID, PREVIEW, HOLD, INFO, NWINDOWS };
+enum window_type { GRID, PREVIEW, HOLD, INFO, ANNOUNCE, NWINDOWS };
 enum tspin_type { TSPIN, MINI_TSPIN, NONE };
+enum score_type {
+	SINGLE,
+	DOUBLE,
+	TRIPLE,
+	TETRIS,
+	PERFECT_SINGLE,
+	PERFECT_DOUBLE,
+	PERFECT_TRIPLE,
+	PERFECT_TETRIS,
+	MINI_TSPIN_REG,
+	TSPIN_REG,
+	MINI_TSPIN_SINGLE,
+	TSPIN_SINGLE,
+	MINI_TSPIN_DOUBLE,
+	TSPIN_DOUBLE,
+	TSPIN_TRIPLE,
+	BACK_TO_BACK,
+};
 
 /* Representation of a tetrimino */
 struct tetrimino {
@@ -297,6 +315,37 @@ render_info()
 	wrefresh(windows[INFO]);
 }
 
+static char*
+get_score_text(enum score_type type)
+{
+	switch (type) {
+		case SINGLE: return "SINGLE!";
+		case DOUBLE: return "DOUBLE!";
+		case TRIPLE: return "TRIPLE!";
+		case TETRIS: return "TETRIS!";
+		case PERFECT_SINGLE: return "PERFECT SINGLE!";
+		case PERFECT_DOUBLE: return "PERFECT DOUBLE!";
+		case PERFECT_TRIPLE: return "PERFECT TRIPLE!";
+		case PERFECT_TETRIS: return "PERFECT TETRIS!";
+		case MINI_TSPIN_REG: return "MINI T-SPIN!";
+		case TSPIN_REG: return "T-SPIN!";
+		case MINI_TSPIN_SINGLE: return "MINI T-SPIN SINGLE!";
+		case TSPIN_SINGLE: return "T-SPIN SINGLE!";
+		case MINI_TSPIN_DOUBLE: return "MINI T-SPIN DOUBLE!";
+		case TSPIN_DOUBLE: return "T-SPIN DOUBLE!";
+		case TSPIN_TRIPLE: return "T-SPIN TRIPLE!";
+		case BACK_TO_BACK: return "BACK TO BACK!";
+	}
+}
+
+static void
+render_announce(enum score_type type)
+{
+    werase(windows[ANNOUNCE]);
+    wprintw(windows[ANNOUNCE], "%15s", get_score_text(type));
+    wrefresh(windows[ANNOUNCE]);
+}
+
 static void
 render_gameover()
 {
@@ -440,6 +489,7 @@ update_score(int lines)
 	/* new level every 10 line clears */
 	game.lines_cleared += lines;
 	game.level = (game.lines_cleared / 10) + 1;
+	enum score_type score_type;
 
 	/* standard line clears */
 	int score = 0;
@@ -458,6 +508,7 @@ update_score(int lines)
 		break;
 	}
 	game.score += score * game.level;
+	score_type = lines - 1;
 	
 	/* combo bonuses */
 	int combo = game.combo == -1 ? 0: game.combo;
@@ -466,6 +517,7 @@ update_score(int lines)
 	/* perfect line clears */
 	if (row_empty(MAX_ROW)) {
 		int score = 0;
+		score_type += 4;
 		switch (lines) {
 		case 1: 
 			score = 800;
@@ -482,6 +534,8 @@ update_score(int lines)
 		}
 		game.score += score * game.level;
 	}
+
+	render_announce(score_type);
 }
 
 /* Clear filled rows and shifts rows down. Returns lines cleared */
@@ -771,6 +825,7 @@ game_init()
     windows[INFO] = newwin(INFO_H, INFO_W, LINES / 2, GRID_X - INFO_W);
 
     windows[PREVIEW] = newwin(N_PREVIEW * BOX_H, BOX_W, GRID_Y, GRID_X + GRID_W);
+    windows[ANNOUNCE] = newwin(1, 20, GRID_Y + GRID_H + 1, GRID_X);
 
 	/* seed random */
 	srand(time(NULL));
