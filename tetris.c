@@ -196,7 +196,7 @@ static const int KICKTABLE[2][2][4][4][2] = {
 		
 	}};
 
-/* time for piece to drop based on level. Gravity is constant past level 20 */
+/* Time for piece to drop based on level. Gravity is constant past level 20 */
 static const float gravity_table[20] = {
 	1.00000F, 0.79300F, 0.61780F, 0.47273F, 0.35520F, 0.26200F, 0.18968F,
 	0.13473F, 0.09388F, 0.06415F, 0.04298F, 0.02822F, 0.01815F, 0.01144F,
@@ -335,7 +335,9 @@ get_score_text(enum score_type type)
 		case TSPIN_DOUBLE: return "T-SPIN DOUBLE!";
 		case TSPIN_TRIPLE: return "T-SPIN TRIPLE!";
 		case BACK_TO_BACK: return "BACK TO BACK!";
+		default: return "???";
 	}
+	return "???";
 }
 
 static void
@@ -515,9 +517,9 @@ update_score(int lines)
 	game.score += 50 * combo * game.level;
 
 	/* perfect line clears */
-	if (row_empty(MAX_ROW)) {
+	if (row_empty(MAX_ROW - 1)) {
 		int score = 0;
-		score_type += 4;
+		score_type += PERFECT_SINGLE;
 		switch (lines) {
 		case 1: 
 			score = 800;
@@ -697,6 +699,11 @@ game_reset()
 			game.grid[y][x] = EMPTY;
 	}
 
+	/* set initial state of bags */
+	enum tetrimino_type initial_bag[BAGSIZE] = {I, J, L, O, S, T, Z};
+	memcpy(game.bag, initial_bag, sizeof(initial_bag));
+	memcpy(game.shuffle_bag, initial_bag, sizeof(initial_bag));
+
 	shuffle_bag(game.bag);
 	shuffle_bag(game.shuffle_bag);
 
@@ -731,7 +738,6 @@ game_input()
 		break;
 	case 'c':
 		controls_hold();
-		render_hold();
 		break;
 	case 'r':
 		game_reset();
@@ -781,6 +787,7 @@ game_render()
 		render_gameover();
 	} else {
 		render_grid();
+		render_hold();
 		render_info();
 		render_preview();
 	}
@@ -829,12 +836,6 @@ game_init()
 
 	/* seed random */
 	srand(time(NULL));
-
-	/* set initial state of bags */
-	enum tetrimino_type initial_bag[BAGSIZE] = {I, J, L, O, S, T, Z};
-	memcpy(game.bag, initial_bag, sizeof(initial_bag));
-	memcpy(game.shuffle_bag, initial_bag, sizeof(initial_bag));
-
 	game_reset();
 }
 
