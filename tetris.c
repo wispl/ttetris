@@ -415,29 +415,24 @@ tetrimino_valid(struct tetrimino *tetrimino, int rotation, int x_offset, int y_o
 }
 
 static enum tspin_type
-is_tspin(int kick_test) {
-	static int corners[4][2] = { {0, 0}, {2, 0}, {2, 2}, {0, 2} };
+is_tspin(int kick_test)
+{
+	static const int corners[4][2] = { {0, 0}, {2, 0}, {2, 2}, {0, 2} };
+	/* filled corners, front-left, front-right, back-right, back-left */
+	bool filled[4];
 
-	int i = game.tetrimino.rotation;
-	const int* f_left  = corners[(i + 0) & 4];
-	const int* f_right = corners[(i + 1) & 4];
-	const int* b_left   = corners[(i + 2) & 4];
-	const int* b_right  = corners[(i + 3) & 4];
-
-	bool back_corners = !block_valid(b_left[0], b_left[1]) && !block_valid(b_right[0], b_right[1]);
-	bool front_corners = !block_valid(f_left[0], f_left[1]) && !block_valid(f_right[0], f_right[1]);
-	bool one_front_corner = !block_valid(f_left[0], f_left[1]) || !block_valid(f_right[0], f_right[1]);
-	bool one_back_corner = !block_valid(b_left[0], b_left[1]) || !block_valid(b_right[0], b_right[1]);
-
-	if (front_corners && one_back_corner) {
-		return TSPIN;
-	} else if (back_corners && one_front_corner) {
-		if (kick_test == 4)
-			return TSPIN;
-		return MINI_TSPIN;
-	} else {
-		return NONE;
+	for (int i = 0; i < 4; ++i) {
+		int index = (game.tetrimino.rotation + i) & 3;
+		filled[i] = !block_valid(corners[index][0] + game.tetrimino.x,
+								 corners[index][1] + game.tetrimino.y);
 	}
+
+	if (filled[0] && filled[1] && (filled[2] || filled[3]))
+		return TSPIN;
+	else if (filled[2] && filled[3] && (filled[0] || filled[1]))
+		return (kick_test == 3) ? TSPIN : MINI_TSPIN;
+	else
+		return NONE;
 }
 
 /*** Game state ***/
@@ -623,13 +618,15 @@ controls_move(int x_offset, int y_offset)
 static void
 controls_rotate(int rotate_by)
 {
-	int kick_test;
 	/* wrap around 3, substitute for modulus when used on powers of 2 */
 	int rotation = (game.tetrimino.rotation + rotate_by) & 3;
+	int kick_test = 0;
+
+	/* perform natural rotation */
 	if (tetrimino_valid(&game.tetrimino, rotation, 0, 0))
 		goto success;
 
-	/* standard rotation failed, attempt kicktable rotations */
+	/* natural rotation failed, attempt kicktable rotations */
 	int direction = rotate_by < 0 ? 0 : 1;
 	bool is_I = game.tetrimino.type == I;
 	for (int n = 0; n < 4; n++) {
@@ -638,13 +635,26 @@ controls_rotate(int rotate_by)
 		if (tetrimino_valid(&game.tetrimino, rotation, offset[0], offset[1])) {
 			game.tetrimino.x += offset[0];
 			game.tetrimino.y += offset[1];
+			kick_test = n;
 			goto success;
 		}
 	}
-
 	success: {
 			game.tetrimino.rotation = rotation;
 			update_ghost();
+
+			if (game.tetrimino.type == T) {
+				switch (is_tspin(kick_test)) {
+				case TSPIN:
+					render_announce(TSPIN_REG);
+					break;
+				case MINI_TSPIN:
+					render_announce(MINI_TSPIN_REG);
+					break;
+				case NONE:
+					break;
+				}
+			}
 
 			if (game.move_reset < 15) {
 				++game.move_reset;
@@ -687,6 +697,7 @@ game_reset()
 	game.has_held = false;
 	game.accumulator = 0.0F;
 	game.piece_lock = false;
+	game.move_reset = 0;
 	game.bag_index = 0;
 	game.has_lost = false;
 	game.level = 1;
