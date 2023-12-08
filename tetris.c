@@ -114,7 +114,7 @@ static WINDOW* windows[NWINDOWS];
 static struct game_state game = {0};
 
 /* rotation mapping, indexed by [type][rotation][block][offset][x or y] */
-static const enum tetrimino_type ROTATIONS[7][4][4][2] = {
+static const int ROTATIONS[7][4][4][2] = {
 	[I] = {{{0, 1}, {1, 1}, {2, 1}, {3, 1}},
 	       {{2, 0}, {2, 1}, {2, 2}, {2, 3}},
 	       {{3, 2}, {2, 2}, {1, 2}, {0, 2}},
@@ -148,7 +148,8 @@ static const enum tetrimino_type ROTATIONS[7][4][4][2] = {
 	[S] = {{{2, 0}, {1, 0}, {1, 1}, {0, 1}},
 	       {{2, 2}, {2, 1}, {1, 1}, {1, 0}},
 	       {{0, 2}, {1, 2}, {1, 1}, {2, 1}},
-	       {{0, 0}, {0, 1}, {1, 1}, {1, 2}}}};
+	       {{0, 0}, {0, 1}, {1, 1}, {1, 2}}}
+};
 
 /* KICKTABLE[is_I piece][direction][rotation][tests][offsets]
  *
@@ -178,7 +179,6 @@ static const int KICKTABLE[2][2][4][4][2] = {
 		 {{ 1, 0}, { 1,  1}, {0, -2}, { 1, -2}},	// 1>>2
 		 {{ 1, 0}, { 1, -1}, {0,  2}, { 1,  2}},	// 2>>3
 		 {{-1, 0}, {-1,  1}, {0, -2}, {-1, -2}}},  	// 3>>0
-		
 	},
 	/* mapping for "I", "O" has no mapping */
 	{
@@ -193,8 +193,8 @@ static const int KICKTABLE[2][2][4][4][2] = {
 		 {{-1, 0}, { 2, 0}, {-1, -2}, { 2,  1}}, 	// 1>>2
 		 {{ 2, 0}, {-1, 0}, { 2, -1}, {-1,  2}}, 	// 2>>3
 		 {{ 1, 0}, {-2, 0}, { 1,  2}, {-2, -1}}},	// 3>>0
-		
-	}};
+	}
+};
 
 /* Time for piece to drop based on level. Gravity is constant past level 20 */
 static const float gravity_table[20] = {
@@ -483,54 +483,24 @@ spawn_tetrimino(enum tetrimino_type type)
 static void
 update_score(int lines)
 {
+	static const int line_clears[4]    = { 100,  300,  500,  800 };
+	static const int perfect_clears[4] = { 800, 1200, 1800, 2000 };
+
 	/* new level every 10 line clears */
 	game.lines_cleared += lines;
 	game.level = (game.lines_cleared / 10) + 1;
-	enum score_type score_type;
+
+	enum score_type score_type = lines - 1;
 
 	/* standard line clears */
-	int score = 0;
-	switch (lines) {
-	case 1:
-		score = 100;
-		break;
-	case 2:
-		score = 300;
-		break;
-	case 3:
-		score = 500;
-		break;
-	case 4:
-		score = 800;
-		break;
-	}
-	game.score += score * game.level;
-	score_type = lines - 1;
-	
-	/* combo bonuses */
-	int combo = game.combo == -1 ? 0: game.combo;
-	game.score += 50 * combo * game.level;
-
+	game.score += line_clears[lines - 1] * game.level;
 	/* perfect line clears */
 	if (row_empty(MAX_ROW - 1)) {
-		int score = 0;
+		game.score += perfect_clears[lines - 1] * game.level;
 		score_type += PERFECT_SINGLE;
-		switch (lines) {
-		case 1: 
-			score = 800;
-			break;
-		case 2:
-			score = 1200;
-			break;
-		case 3:
-			score = 1800;
-			break;
-		case 4:
-			score = 2000;
-			break;
-		}
-		game.score += score * game.level;
 	}
+	/* combo bonuses */
+	game.score += 50 * (game.combo < 0 ? 0 : game.combo) * game.level;
 
 	render_announce(score_type);
 }
@@ -577,9 +547,8 @@ place_tetrimino()
 	}
 
 	if (clear_begin != -1) {
+		update_score(update_rows(clear_begin));
 		++game.combo;
-		int lines = update_rows(clear_begin);
-		update_score(lines);
 	} else {
 		game.combo = -1;
 	}
@@ -639,6 +608,7 @@ controls_rotate(int rotate_by)
 			goto success;
 		}
 	}
+
 	success: {
 			game.tetrimino.rotation = rotation;
 			update_ghost();
