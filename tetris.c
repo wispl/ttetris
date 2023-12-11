@@ -39,24 +39,15 @@
 
 enum tetrimino_type { EMPTY = -1, I, J, L, O, S, T, Z };
 enum window_type { GRID, PREVIEW, HOLD, INFO, ANNOUNCE, NWINDOWS };
-enum tspin_type { TSPIN, MINI_TSPIN, NONE };
 enum score_type {
-	SINGLE,
-	DOUBLE,
-	TRIPLE,
-	TETRIS,
-	PERFECT_SINGLE,
-	PERFECT_DOUBLE,
-	PERFECT_TRIPLE,
-	PERFECT_TETRIS,
-	MINI_TSPIN_REG,
-	TSPIN_REG,
-	MINI_TSPIN_SINGLE,
-	TSPIN_SINGLE,
-	MINI_TSPIN_DOUBLE,
-	TSPIN_DOUBLE,
+	SINGLE, DOUBLE, TRIPLE, TETRIS,
+	PERFECT_SINGLE, PERFECT_DOUBLE, PERFECT_TRIPLE, PERFECT_TETRIS,
+	MINI_TSPIN, TSPIN,
+	MINI_TSPIN_SINGLE, TSPIN_SINGLE,
+	MINI_TSPIN_DOUBLE, TSPIN_DOUBLE,
 	TSPIN_TRIPLE,
 	BACK_TO_BACK,
+	NONE,
 };
 
 /* Representation of a tetrimino */
@@ -107,6 +98,8 @@ struct game_state {
 	int lines_cleared;
 	int score;
 	int combo;
+
+	enum score_type tspin;
 };
 
 static WINDOW* windows[NWINDOWS];
@@ -331,23 +324,24 @@ static char*
 get_score_text(enum score_type type)
 {
 	switch (type) {
-		case SINGLE: return "SINGLE!";
-		case DOUBLE: return "DOUBLE!";
-		case TRIPLE: return "TRIPLE!";
-		case TETRIS: return "TETRIS!";
-		case PERFECT_SINGLE: return "PERFECT SINGLE!";
-		case PERFECT_DOUBLE: return "PERFECT DOUBLE!";
-		case PERFECT_TRIPLE: return "PERFECT TRIPLE!";
-		case PERFECT_TETRIS: return "PERFECT TETRIS!";
-		case MINI_TSPIN_REG: return "MINI T-SPIN!";
-		case TSPIN_REG: return "T-SPIN!";
+		case SINGLE: 			return "SINGLE!";
+		case DOUBLE: 			return "DOUBLE!";
+		case TRIPLE: 			return "TRIPLE!";
+		case TETRIS: 			return "TETRIS!";
+		case PERFECT_SINGLE: 	return "PERFECT SINGLE!";
+		case PERFECT_DOUBLE: 	return "PERFECT DOUBLE!";
+		case PERFECT_TRIPLE: 	return "PERFECT TRIPLE!";
+		case PERFECT_TETRIS: 	return "PERFECT TETRIS!";
+		case MINI_TSPIN: 		return "MINI T-SPIN!";
+		case TSPIN: 	 		return "T-SPIN!";
 		case MINI_TSPIN_SINGLE: return "MINI T-SPIN SINGLE!";
-		case TSPIN_SINGLE: return "T-SPIN SINGLE!";
+		case TSPIN_SINGLE: 		return "T-SPIN SINGLE!";
 		case MINI_TSPIN_DOUBLE: return "MINI T-SPIN DOUBLE!";
-		case TSPIN_DOUBLE: return "T-SPIN DOUBLE!";
-		case TSPIN_TRIPLE: return "T-SPIN TRIPLE!";
-		case BACK_TO_BACK: return "BACK TO BACK!";
-		default: return "???";
+		case TSPIN_DOUBLE: 		return "T-SPIN DOUBLE!";
+		case TSPIN_TRIPLE: 		return "T-SPIN TRIPLE!";
+		case BACK_TO_BACK: 		return "BACK TO BACK!";
+		case NONE: 				return "";
+		default: 				return "???";
 	}
 	return "???";
 }
@@ -426,8 +420,8 @@ tetrimino_valid(int rotation, int x_offset, int y_offset)
 	return true;
 }
 
-static enum tspin_type
-is_tspin(int kick_test)
+static void
+check_tspin(int kick_test)
 {
 	static const int corners[4][2] = { {0, 0}, {2, 0}, {2, 2}, {0, 2} };
 	/* filled corners, front-left, front-right, back-right, back-left */
@@ -439,12 +433,16 @@ is_tspin(int kick_test)
 								 corners[index][1] + game.tetrimino.y);
 	}
 
-	if (filled[0] && filled[1] && (filled[2] || filled[3]))
-		return TSPIN;
-	else if (filled[2] && filled[3] && (filled[0] || filled[1]))
-		return (kick_test == 3) ? TSPIN : MINI_TSPIN;
-	else
-		return NONE;
+	if (filled[0] && filled[1] && (filled[2] || filled[3])) {
+		game.tspin = TSPIN;
+	} else if (filled[2] && filled[3] && (filled[0] || filled[1])) {
+		game.tspin = (kick_test == 3) ? TSPIN : MINI_TSPIN;
+	} else {
+		game.tspin = NONE;
+		return;
+	}
+
+	render_announce(game.tspin);
 }
 
 /*** Game state ***/
@@ -619,18 +617,8 @@ controls_rotate(int rotate_by)
 			game.tetrimino.rotation = rotation;
 			update_ghost();
 
-			if (game.tetrimino.type == T) {
-				switch (is_tspin(kick_test)) {
-				case TSPIN:
-					render_announce(TSPIN_REG);
-					break;
-				case MINI_TSPIN:
-					render_announce(MINI_TSPIN_REG);
-					break;
-				case NONE:
-					break;
-				}
-			}
+			if (game.tetrimino.type == T)
+				check_tspin(kick_test);
 
 			if (game.move_reset < 15) {
 				++game.move_reset;
@@ -680,6 +668,7 @@ game_reset()
 	game.lines_cleared = 0;
 	game.score = 0;
 	game.combo = -1;
+	game.tspin = NONE;
 
 	for (int y = 0; y < MAX_ROW; ++y) {
 		for (int x = 0; x < MAX_COL; ++x)
