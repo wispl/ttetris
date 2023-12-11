@@ -614,6 +614,7 @@ controls_rotate(int rotate_by)
 		}
 	}
 
+	return;
 	success: {
 			game.tetrimino.rotation = rotation;
 			update_ghost();
