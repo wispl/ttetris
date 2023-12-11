@@ -110,10 +110,9 @@ struct game_state {
 };
 
 static WINDOW* windows[NWINDOWS];
-/* there should only be one instance of game_state */
 static struct game_state game = {0};
 
-/* rotation mapping, indexed by [type][rotation][block][offset][x or y] */
+/* rotation mapping, indexed by [type][rotation][block][x or y] */
 static const int ROTATIONS[7][4][4][2] = {
 	[I] = {{{0, 1}, {1, 1}, {2, 1}, {3, 1}},
 	       {{2, 0}, {2, 1}, {2, 2}, {2, 3}},
@@ -203,6 +202,19 @@ static const float gravity_table[20] = {
 	0.00706F, 0.00426F, 0.00252F, 0.00146F, 0.00082F, 0.00046F,
 };
 
+/* get coordinates of rotation and block n for the current tetrimino */
+static inline int
+block_x(int rotation, int n)
+{
+	return game.tetrimino.x + ROTATIONS[game.tetrimino.type][rotation][n][0];
+}
+
+static inline int
+block_y(int rotation, int n)
+{
+	return game.tetrimino.y + ROTATIONS[game.tetrimino.type][rotation][n][1];
+}
+
 static inline float
 diff_timespec(const struct timespec *t1, const struct timespec *t0)
 {
@@ -250,10 +262,10 @@ static void
 render_active_tetrimino(bool ghost)
 {
 	for (int n = 0; n < 4; ++n) {
-		const int *offset = ROTATIONS[game.tetrimino.type][game.tetrimino.rotation][n];
-		int x = (game.tetrimino.x + offset[0]) * 2;
-		int y = (ghost ? game.ghost_y : game.tetrimino.y) + offset[1];
-		int c = ghost ? '/' : block_chtype(game.tetrimino.type);
+		int x = 2 * block_x(game.tetrimino.rotation, n);
+		int y = block_y(game.tetrimino.rotation, n)
+			  + (ghost * (game.ghost_y - game.tetrimino.y));
+		chtype c = ghost ? '/' : block_chtype(game.tetrimino.type);
 
 		if (y < EXTRA_ROWS) 
 			continue;
@@ -401,14 +413,14 @@ clear_row(int row)
 		game.grid[row][n] = EMPTY;
 }
 
-/* Check if the tetrimino is valid at the given rotation and offset */
+/* Check if the current tetrimino is valid at the given rotation and offset */
 static bool
-tetrimino_valid(struct tetrimino *tetrimino, int rotation, int x_offset, int y_offset)
+tetrimino_valid(int rotation, int x_offset, int y_offset)
 {
 	for (int n = 0; n < 4; ++n) {
-		const int *offsets = ROTATIONS[tetrimino->type][rotation][n];
-		if (!block_valid(tetrimino->x + x_offset + offsets[0],
-				 		 tetrimino->y + y_offset + offsets[1]))
+		int x = block_x(rotation, n) + x_offset;
+		int y = block_y(rotation, n) + y_offset;
+		if (!block_valid(x, y))
 			return false;
 	}
 	return true;
@@ -442,7 +454,7 @@ static void
 update_ghost()
 {
 	int y = 0;
-	while (tetrimino_valid(&game.tetrimino, game.tetrimino.rotation, 0, y + 1))
+	while (tetrimino_valid(game.tetrimino.rotation, 0, y + 1))
 		++y;
 	game.ghost_y = y + game.tetrimino.y;
 }
@@ -534,16 +546,12 @@ static void
 place_tetrimino()
 {
 	int clear_begin = -1;
-
 	for (int n = 0; n < 4; ++n) {
-		enum tetrimino_type type = game.tetrimino.type;
-		const int *offsets = ROTATIONS[type][game.tetrimino.rotation][n];
-		int x = game.tetrimino.x + offsets[0];
-		int y = game.tetrimino.y + offsets[1];
-		game.grid[y][x] = type;
+		int x = block_x(game.tetrimino.rotation, n);
+		int y = block_y(game.tetrimino.rotation, n);
 
-		if (row_filled(y))
-			clear_begin = y > clear_begin ? y : clear_begin;
+		clear_begin = (row_filled(y) && y > clear_begin) ? y : clear_begin;
+		game.grid[y][x] = game.tetrimino.type;
 	}
 
 	if (clear_begin != -1) {
@@ -553,14 +561,12 @@ place_tetrimino()
 		game.combo = -1;
 	}
 
-	/* clear lines before checking if the user lost, 
-	 * sometimes a piece performs a clear before it is out of bounds */
+	/* a line clear could have saved the player from losing, check first */ 
 	if (!row_empty(1)) {
 		game.has_lost = true;
 		return;
 	}
 
-	/* get a new piece and allow the user to hold again */
 	game.has_held = false;
 	spawn_tetrimino(next_tetrimino(game));
 }
@@ -571,7 +577,7 @@ static void
 controls_move(int x_offset, int y_offset)
 {
 	assert(y_offset >= 0 && "Tetrimino can not be moved up");
-	if (tetrimino_valid(&game.tetrimino, game.tetrimino.rotation, x_offset, y_offset)) {
+	if (tetrimino_valid(game.tetrimino.rotation, x_offset, y_offset)) {
 		game.tetrimino.x += x_offset;
 		game.tetrimino.y += y_offset;
 		game.score += y_offset;
@@ -587,12 +593,11 @@ controls_move(int x_offset, int y_offset)
 static void
 controls_rotate(int rotate_by)
 {
-	/* wrap around 3, substitute for modulus when used on powers of 2 */
 	int rotation = (game.tetrimino.rotation + rotate_by) & 3;
 	int kick_test = 0;
 
 	/* perform natural rotation */
-	if (tetrimino_valid(&game.tetrimino, rotation, 0, 0))
+	if (tetrimino_valid(rotation, 0, 0))
 		goto success;
 
 	/* natural rotation failed, attempt kicktable rotations */
@@ -601,7 +606,7 @@ controls_rotate(int rotate_by)
 	for (int n = 0; n < 4; n++) {
 		const int *offset = KICKTABLE[is_I][direction][game.tetrimino.rotation][n];
 
-		if (tetrimino_valid(&game.tetrimino, rotation, offset[0], offset[1])) {
+		if (tetrimino_valid(rotation, offset[0], offset[1])) {
 			game.tetrimino.x += offset[0];
 			game.tetrimino.y += offset[1];
 			kick_test = n;
@@ -742,7 +747,7 @@ game_update()
 	game.time_prev = time_now;
 
 	/* check if tetrimino can be moved down by gravity */
-	if (tetrimino_valid(&game.tetrimino, game.tetrimino.rotation, 0, 1)) {
+	if (tetrimino_valid(game.tetrimino.rotation, 0, 1)) {
 		int i = game.level > 20 ? 19 : game.level - 1;
 		if (game.accumulator > gravity_table[i]) {
 			game.accumulator -= gravity_table[i];
