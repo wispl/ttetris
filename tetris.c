@@ -548,8 +548,8 @@ place_tetrimino()
 		int x = block_x(game.tetrimino.rotation, n);
 		int y = block_y(game.tetrimino.rotation, n);
 
-		clear_begin = (row_filled(y) && y > clear_begin) ? y : clear_begin;
 		game.grid[y][x] = game.tetrimino.type;
+		clear_begin = (row_filled(y) && y > clear_begin) ? y : clear_begin;
 	}
 
 	if (clear_begin != -1) {
