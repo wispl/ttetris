@@ -40,14 +40,12 @@
 enum tetrimino_type { EMPTY = -1, I, J, L, O, S, T, Z };
 enum window_type { GRID, PREVIEW, HOLD, INFO, ANNOUNCE, NWINDOWS };
 enum score_type {
+	NONE,
 	SINGLE, DOUBLE, TRIPLE, TETRIS,
 	PERFECT_SINGLE, PERFECT_DOUBLE, PERFECT_TRIPLE, PERFECT_TETRIS,
-	MINI_TSPIN, TSPIN,
-	MINI_TSPIN_SINGLE, TSPIN_SINGLE,
-	MINI_TSPIN_DOUBLE, TSPIN_DOUBLE,
-	TSPIN_TRIPLE,
+	MINI_TSPIN, MINI_TSPIN_SINGLE, MINI_TSPIN_DOUBLE, 
+	TSPIN, TSPIN_SINGLE, TSPIN_DOUBLE, TSPIN_TRIPLE,
 	BACK_TO_BACK,
-	NONE,
 };
 
 /* Representation of a tetrimino */
@@ -496,23 +494,38 @@ update_score(int lines)
 	static const int line_clears[4]    = { 100,  300,  500,  800 };
 	static const int perfect_clears[4] = { 800, 1200, 1800, 2000 };
 
+	/* tspin scoring */
+	game.score += 100 * (lines + 1) * game.level * (game.tspin == MINI_TSPIN);
+	game.score += 400 * (lines + 1) * game.level * (game.tspin == TSPIN);
+	/* no line clears, only tspins */
+	if (lines == 0) {
+		game.combo = -1;
+		render_announce(game.tspin);
+		return;
+	}
+
+	enum score_type score_type = lines;
+	int score = 0;
+	/* tspin clears have precedence over regular clears */
+	if (game.tspin != NONE)
+		score_type = game.tspin + lines;
+	else
+		score += line_clears[lines - 1];
+	/* perfect line clears are added to regular line clears */
+	if (row_empty(MAX_ROW - 1)) {
+		score += perfect_clears[lines - 1];
+		score_type = PERFECT_SINGLE + lines;
+	}
+	/* combo bonuses */
+	score += 50 * (game.combo < 0 ? 0 : game.combo);
+
+	render_announce(score_type);
 	/* new level every 10 line clears */
 	game.lines_cleared += lines;
 	game.level = (game.lines_cleared / 10) + 1;
 
-	enum score_type score_type = lines - 1;
-
-	/* standard line clears */
-	game.score += line_clears[lines - 1] * game.level;
-	/* perfect line clears */
-	if (row_empty(MAX_ROW - 1)) {
-		game.score += perfect_clears[lines - 1] * game.level;
-		score_type += PERFECT_SINGLE;
-	}
-	/* combo bonuses */
-	game.score += 50 * (game.combo < 0 ? 0 : game.combo) * game.level;
-
-	render_announce(score_type);
+	game.score += score * game.level;
+	++game.combo;
 }
 
 /* Clear filled rows and shifts rows down. Returns lines cleared */
@@ -547,19 +560,14 @@ place_tetrimino()
 	for (int n = 0; n < 4; ++n) {
 		int x = block_x(game.tetrimino.rotation, n);
 		int y = block_y(game.tetrimino.rotation, n);
-
 		game.grid[y][x] = game.tetrimino.type;
 		clear_begin = (row_filled(y) && y > clear_begin) ? y : clear_begin;
 	}
 
-	if (clear_begin != -1) {
-		update_score(update_rows(clear_begin));
-		++game.combo;
-	} else {
-		game.combo = -1;
-	}
+	int lines = (clear_begin != -1) ? update_rows(clear_begin) : 0;
+	update_score(lines);
 
-	/* a line clear could have saved the player from losing, check first */ 
+	/* check for overflow only after lines have been cleared */ 
 	if (!row_empty(1)) {
 		game.has_lost = true;
 		return;
