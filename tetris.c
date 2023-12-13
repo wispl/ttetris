@@ -81,9 +81,7 @@ struct game_state {
 
 	/* these bags are ring buffers and used for pieces and preview */
 	int bag_index;
-	/* bag used for piece and preview */
 	enum tetrimino_type bag[BAGSIZE];
-	/* bag used for shuffling and replacing pieces in main bag */
 	enum tetrimino_type shuffle_bag[BAGSIZE];
 
 	/* held piece */
@@ -485,6 +483,7 @@ spawn_tetrimino(enum tetrimino_type type)
 	game.accumulator = 0.0F;
 	game.piece_lock = false;
 	game.move_reset = 0;
+	game.tspin = NONE;
 }
 
 /* updates score and levels after line clears */
