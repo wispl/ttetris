@@ -96,6 +96,7 @@ struct game_state {
 	int combo;
 
 	enum score_type tspin;
+	bool back_to_back;
 };
 
 static WINDOW* windows[NWINDOWS];
@@ -202,6 +203,50 @@ static inline int
 block_y(int rotation, int n)
 {
 	return game.tetrimino.y + ROTATIONS[game.tetrimino.type][rotation][n][1];
+}
+
+static char*
+get_score_text(enum score_type type)
+{
+	switch (type) {
+	case SINGLE: 			return "SINGLE!";
+	case DOUBLE: 			return "DOUBLE!";
+	case TRIPLE: 			return "TRIPLE!";
+	case TETRIS: 			return "TETRIS!";
+	case PERFECT_SINGLE: 	return "PERFECT SINGLE!";
+	case PERFECT_TRIPLE: 	return "PERFECT TRIPLE!";
+	case PERFECT_DOUBLE: 	return "PERFECT DOUBLE!";
+	case PERFECT_TETRIS: 	return "PERFECT TETRIS!";
+	case MINI_TSPIN: 		return "MINI T-SPIN!";
+	case TSPIN: 	 		return "T-SPIN!";
+	case MINI_TSPIN_SINGLE: return "MINI T-SPIN SINGLE!";
+	case TSPIN_SINGLE: 		return "T-SPIN SINGLE!";
+	case MINI_TSPIN_DOUBLE: return "MINI T-SPIN DOUBLE!";
+	case TSPIN_DOUBLE: 		return "T-SPIN DOUBLE!";
+	case TSPIN_TRIPLE: 		return "T-SPIN TRIPLE!";
+	case BACK_TO_BACK: 		return "BACK TO BACK!";
+	case NONE: 				return "";
+	default: 				return "???";
+	}
+	return "???";
+}
+
+static bool
+is_difficult(enum score_type type)
+{
+	switch (type) {
+	case TETRIS:
+	case MINI_TSPIN_SINGLE:
+	case TSPIN_SINGLE:
+	case MINI_TSPIN_DOUBLE:
+	case TSPIN_DOUBLE:
+	case TSPIN_TRIPLE:
+	case PERFECT_TETRIS:		
+		return true;
+	default:
+		return false;
+	}
+	return false;
 }
 
 static inline float
@@ -316,37 +361,14 @@ render_info()
 	wrefresh(windows[INFO]);
 }
 
-static char*
-get_score_text(enum score_type type)
-{
-	switch (type) {
-		case SINGLE: 			return "SINGLE!";
-		case DOUBLE: 			return "DOUBLE!";
-		case TRIPLE: 			return "TRIPLE!";
-		case TETRIS: 			return "TETRIS!";
-		case PERFECT_SINGLE: 	return "PERFECT SINGLE!";
-		case PERFECT_DOUBLE: 	return "PERFECT DOUBLE!";
-		case PERFECT_TRIPLE: 	return "PERFECT TRIPLE!";
-		case PERFECT_TETRIS: 	return "PERFECT TETRIS!";
-		case MINI_TSPIN: 		return "MINI T-SPIN!";
-		case TSPIN: 	 		return "T-SPIN!";
-		case MINI_TSPIN_SINGLE: return "MINI T-SPIN SINGLE!";
-		case TSPIN_SINGLE: 		return "T-SPIN SINGLE!";
-		case MINI_TSPIN_DOUBLE: return "MINI T-SPIN DOUBLE!";
-		case TSPIN_DOUBLE: 		return "T-SPIN DOUBLE!";
-		case TSPIN_TRIPLE: 		return "T-SPIN TRIPLE!";
-		case BACK_TO_BACK: 		return "BACK TO BACK!";
-		case NONE: 				return "";
-		default: 				return "???";
-	}
-	return "???";
-}
-
 static void
 render_announce(enum score_type type)
 {
     werase(windows[ANNOUNCE]);
-    wprintw(windows[ANNOUNCE], "%15s", get_score_text(type));
+	if (game.back_to_back)
+		wprintw(windows[ANNOUNCE], "%s %s", "Back to Back", get_score_text(type));
+	else
+		wprintw(windows[ANNOUNCE], "%15s", get_score_text(type));
     wrefresh(windows[ANNOUNCE]);
 }
 
@@ -490,41 +512,36 @@ spawn_tetrimino(enum tetrimino_type type)
 static void
 update_score(int lines)
 {
-	static const int line_clears[4]    = { 100,  300,  500,  800 };
-	static const int perfect_clears[4] = { 800, 1200, 1800, 2000 };
+	static const int line_clears[9] = { 0, 100, 300, 500, 800, 800, 1200, 1800, 2000 };
 
-	/* tspin scoring */
-	game.score += 100 * (lines + 1) * game.level * (game.tspin == MINI_TSPIN);
-	game.score += 400 * (lines + 1) * game.level * (game.tspin == TSPIN);
-	/* no line clears, only tspins */
-	if (lines == 0) {
-		game.combo = -1;
-		render_announce(game.tspin);
-		return;
+	enum score_type score_type = (game.tspin != NONE) ? game.tspin + lines : lines;
+	double score = 0;
+
+	/* tspin clears have priority over regular clears */
+	if (game.tspin != NONE) {
+		score += 100 * (game.tspin == MINI_TSPIN) + 400 * (game.tspin == TSPIN);
+		/* line clear and back to back bonuses */
+		score *= (lines + 1) * (game.back_to_back ? 1.5 : 1);
+	} else {
+		score += line_clears[lines] * (game.back_to_back ? 1.5 : 1);
 	}
-
-	enum score_type score_type = lines;
-	int score = 0;
-	/* tspin clears have precedence over regular clears */
-	if (game.tspin != NONE)
-		score_type = game.tspin + lines;
-	else
-		score += line_clears[lines - 1];
-	/* perfect line clears are added to regular line clears */
+	/* perfect line clear bonuses are added to regular clear bonuses */
 	if (row_empty(MAX_ROW - 1)) {
-		score += perfect_clears[lines - 1];
 		score_type = PERFECT_SINGLE + lines;
+		score += (game.back_to_back) ? 3200 : line_clears[score_type];
 	}
 	/* combo bonuses */
 	score += 50 * (game.combo < 0 ? 0 : game.combo);
 
+	game.score += (int) (score * game.level);
 	render_announce(score_type);
+
 	/* new level every 10 line clears */
 	game.lines_cleared += lines;
 	game.level = (game.lines_cleared / 10) + 1;
 
-	game.score += score * game.level;
-	++game.combo;
+	game.combo = (lines == 0) ? -1 : game.combo + 1;
+	game.back_to_back = is_difficult(score_type);
 }
 
 /* Clear filled rows and shifts rows down. Returns lines cleared */
@@ -676,6 +693,7 @@ game_reset()
 	game.score = 0;
 	game.combo = -1;
 	game.tspin = NONE;
+	game.back_to_back = false;
 
 	for (int y = 0; y < MAX_ROW; ++y) {
 		for (int x = 0; x < MAX_COL; ++x)
