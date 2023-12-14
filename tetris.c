@@ -37,16 +37,34 @@
 #define INFO_W        20
 #define INFO_H        8
 
+#define FOR_EACH_ACTION(X) \
+	X(NONE, , 0) \
+	X(SINGLE, SINGLE, 100) \
+	X(DOUBLE, DOUBLE, 300) \
+	X(TRIPLE, TRIPLE, 500) \
+	X(TETRIS, TETRIS, 800) \
+	X(PERFECT_SINGLE, PERFECT SINGLE, 800) \
+	X(PERFECT_DOUBLE, PERFECT DOUBLE, 1200) \
+	X(PERFECT_TRIPLE, PERFECT TRIPLE, 1800) \
+	X(PERFECT_TETRIS, PERFECT TETRIS, 2000) \
+	X(MINI_TSPIN, MINI T-SPIN, 100) \
+	X(MINI_TSPIN_SINGLE, MINI T-SPIN SINGLE, 200) \
+	X(MINI_TSPIN_DOUBLE,  MINI T-SPIN DOUBLE, 400) \
+	X(TSPIN, T-SPIN, 400) \
+	X(TSPIN_SINGLE, T-SPIN SINGLE, 800) \
+	X(TSPIN_DOUBLE, T-SPIN DOUBLE, 1200) \
+	X(TSPIN_TRIPLE, T-SPIN TRIPLE, 1600) \
+
+#define GENERATE_ENUM(ENUM, TEXT, POINTS) ENUM,
+#define GENERATE_TEXT(ENUM, TEXT, POINTS) #TEXT,
+#define GENERATE_POINTS(ENUM, TEXT, POINTS) POINTS,
+
+enum score_type { FOR_EACH_ACTION(GENERATE_ENUM) };
+static const int ACTION_POINTS[] = { FOR_EACH_ACTION(GENERATE_POINTS) };
+static const char* ACTION_TEXT[] = { FOR_EACH_ACTION(GENERATE_TEXT) };
+
 enum tetrimino_type { EMPTY = -1, I, J, L, O, S, T, Z };
 enum window_type { GRID, PREVIEW, HOLD, INFO, ANNOUNCE, NWINDOWS };
-enum score_type {
-	NONE,
-	SINGLE, DOUBLE, TRIPLE, TETRIS,
-	PERFECT_SINGLE, PERFECT_DOUBLE, PERFECT_TRIPLE, PERFECT_TETRIS,
-	MINI_TSPIN, MINI_TSPIN_SINGLE, MINI_TSPIN_DOUBLE, 
-	TSPIN, TSPIN_SINGLE, TSPIN_DOUBLE, TSPIN_TRIPLE,
-	BACK_TO_BACK,
-};
 
 /* Representation of a tetrimino */
 struct tetrimino {
@@ -205,32 +223,6 @@ block_y(int rotation, int n)
 	return game.tetrimino.y + ROTATIONS[game.tetrimino.type][rotation][n][1];
 }
 
-static char*
-get_score_text(enum score_type type)
-{
-	switch (type) {
-	case SINGLE: 			return "SINGLE!";
-	case DOUBLE: 			return "DOUBLE!";
-	case TRIPLE: 			return "TRIPLE!";
-	case TETRIS: 			return "TETRIS!";
-	case PERFECT_SINGLE: 	return "PERFECT SINGLE!";
-	case PERFECT_TRIPLE: 	return "PERFECT TRIPLE!";
-	case PERFECT_DOUBLE: 	return "PERFECT DOUBLE!";
-	case PERFECT_TETRIS: 	return "PERFECT TETRIS!";
-	case MINI_TSPIN: 		return "MINI T-SPIN!";
-	case TSPIN: 	 		return "T-SPIN!";
-	case MINI_TSPIN_SINGLE: return "MINI T-SPIN SINGLE!";
-	case TSPIN_SINGLE: 		return "T-SPIN SINGLE!";
-	case MINI_TSPIN_DOUBLE: return "MINI T-SPIN DOUBLE!";
-	case TSPIN_DOUBLE: 		return "T-SPIN DOUBLE!";
-	case TSPIN_TRIPLE: 		return "T-SPIN TRIPLE!";
-	case BACK_TO_BACK: 		return "BACK TO BACK!";
-	case NONE: 				return "";
-	default: 				return "???";
-	}
-	return "???";
-}
-
 static bool
 is_difficult(enum score_type type)
 {
@@ -362,13 +354,11 @@ render_info()
 }
 
 static void
-render_announce(enum score_type type)
+render_announce(enum score_type type, bool back_to_back)
 {
     werase(windows[ANNOUNCE]);
-	if (game.back_to_back)
-		wprintw(windows[ANNOUNCE], "%s %s", "Back to Back", get_score_text(type));
-	else
-		wprintw(windows[ANNOUNCE], "%15s", get_score_text(type));
+    wprintw(windows[ANNOUNCE], "%s %15s",
+	    	ACTION_TEXT[type], (back_to_back) ? "Back to Back" : "");
     wrefresh(windows[ANNOUNCE]);
 }
 
@@ -460,7 +450,7 @@ check_tspin(int kick_test)
 		return;
 	}
 
-	render_announce(game.tspin);
+	render_announce(game.tspin, false);
 }
 
 /*** Game state ***/
@@ -512,29 +502,19 @@ spawn_tetrimino(enum tetrimino_type type)
 static void
 update_score(int lines)
 {
-	static const int line_clears[9] = { 0, 100, 300, 500, 800, 800, 1200, 1800, 2000 };
-
 	enum score_type score_type = (game.tspin != NONE) ? game.tspin + lines : lines;
-	double score = 0;
+	bool back_to_back = is_difficult(score_type) && game.back_to_back;
+	double score = ACTION_POINTS[score_type] * ((back_to_back) ? 1.5 : 1);
 
-	/* tspin clears have priority over regular clears */
-	if (game.tspin != NONE) {
-		score += 100 * (game.tspin == MINI_TSPIN) + 400 * (game.tspin == TSPIN);
-		/* line clear and back to back bonuses */
-		score *= (lines + 1) * (game.back_to_back ? 1.5 : 1);
-	} else {
-		score += line_clears[lines] * (game.back_to_back ? 1.5 : 1);
-	}
-	/* perfect line clear bonuses are added to regular clear bonuses */
-	if (row_empty(MAX_ROW - 1)) {
-		score_type = PERFECT_SINGLE + lines;
-		score += (game.back_to_back) ? 3200 : line_clears[score_type];
-	}
 	/* combo bonuses */
 	score += 50 * (game.combo < 0 ? 0 : game.combo);
 
+	/* perfect line clear bonuses are added to regular clear bonuses */
+	if (row_empty(MAX_ROW - 1))
+		score += (back_to_back) ? 3200 : ACTION_POINTS[PERFECT_SINGLE + lines];
+
 	game.score += (int) (score * game.level);
-	render_announce(score_type);
+	render_announce(score_type, back_to_back);
 
 	/* new level every 10 line clears */
 	game.lines_cleared += lines;
