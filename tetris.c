@@ -18,9 +18,10 @@
 #define MAX_COL     10
 
 /* bag settings */
-#define BAGSIZE     7
-#define N_PREVIEW   5
-#define LOCK_DELAY  0.5F
+#define BAGSIZE     		7
+#define N_PREVIEW   		5
+#define LOCK_DELAY  		0.5F
+#define ACTION_TEXT_EXPIRE  2.0F
 
 #define BORDER_WIDTH  1
 #define CELL_WIDTH    2
@@ -96,6 +97,9 @@ struct game_state {
 	/* whether active tetrimino is in autoplacement state */
 	bool piece_lock;
 	int move_reset;
+
+	/* start of when action text is dispalyed */
+	struct timespec action_start;
 
 	/* these bags are ring buffers and used for pieces and preview */
 	int bag_index;
@@ -352,8 +356,10 @@ render_info()
 static void
 render_announce(enum action_type type, bool back_to_back)
 {
+	clock_gettime(CLOCK_MONOTONIC, &game.action_start);
+
     werase(windows[ACTION]);
-	int pad = (20 - strlen(ACTION_TEXT[type])) / 2;
+	int pad = ((20 - strlen(ACTION_TEXT[type])) / 2) + 1;
     wprintw(windows[ACTION], "%*s%s", pad, "", ACTION_TEXT[type]);
     mvwprintw(windows[ACTION], 1, 5, "%s", (back_to_back) ? "BACK TO BACK" : "");
     wrefresh(windows[ACTION]);
@@ -756,6 +762,11 @@ game_update()
 	/* piece autoplacement is independent of gravity */
 	if (game.piece_lock && diff_timespec(&time_now, &game.lock_delay) > LOCK_DELAY)
 		place_tetrimino();
+
+	if (diff_timespec(&time_now, &game.action_start) > ACTION_TEXT_EXPIRE) {
+		werase(windows[ACTION]);
+		wrefresh(windows[ACTION]);
+	}
 }
 
 void
