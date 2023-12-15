@@ -37,6 +37,7 @@
 #define INFO_W        20
 #define INFO_H        8
 
+/* Action mapping of enum, text, and points */
 #define FOR_EACH_ACTION(X) \
 	X(NONE, , 0) \
 	X(SINGLE, SINGLE, 100) \
@@ -59,19 +60,18 @@
 #define GENERATE_TEXT(ENUM, TEXT, POINTS) #TEXT,
 #define GENERATE_POINTS(ENUM, TEXT, POINTS) POINTS,
 
-enum score_type { FOR_EACH_ACTION(GENERATE_ENUM) };
+enum action_type { FOR_EACH_ACTION(GENERATE_ENUM) };
 static const int ACTION_POINTS[] = { FOR_EACH_ACTION(GENERATE_POINTS) };
 static const char* ACTION_TEXT[] = { FOR_EACH_ACTION(GENERATE_TEXT) };
 
 enum tetrimino_type { EMPTY = -1, I, J, L, O, S, T, Z };
-enum window_type { GRID, PREVIEW, HOLD, INFO, ANNOUNCE, NWINDOWS };
+enum window_type { GRID, PREVIEW, HOLD, STATS, ACTION, NWINDOWS };
 
 /* Representation of a tetrimino */
 struct tetrimino {
 	enum tetrimino_type type;
 	int rotation;
-	int y;
-	int x;
+	int x, y;
 };
 
 /* Game structure, holds all revelant information related to a game */
@@ -107,13 +107,12 @@ struct game_state {
 	/* whether the player has held already */
 	bool has_held;
 
-	/* levels and scoring */
 	int level;
 	int lines_cleared;
 	int score;
 	int combo;
 
-	enum score_type tspin;
+	enum action_type tspin;
 	bool back_to_back;
 };
 
@@ -160,16 +159,13 @@ static const int ROTATIONS[7][4][4][2] = {
 
 /* KICKTABLE[is_I piece][direction][rotation][tests][offsets]
  *
- * 1st test is for wallkicks (left and right)
- * 2nd test is for floorkicks
- * 3rd test is for right well kicks
- * 4th test is for left well kicks
+ * Tests are in order from:
+ * wallkicks (left and right), floorkicks, right well kicks, left well kicks
  *
- * These are alternative rotations for when the standard one fails and is chosen
- * based on: the current rotation and the desired rotation, 
- * notated as follows (from)>>(two)
+ * These are alternative rotations for when the natural one fails and is chosen
+ * based on: the current rotation and the desired rotation (from)>>(to)
  *
- * These are organized so you can find the right rotation using
+ * These are organized so the right rotation can is indexed using the
  * the current rotation of the tetrimino.
  */
 static const int KICKTABLE[2][2][4][4][2] = {
@@ -210,7 +206,7 @@ static const float gravity_table[20] = {
 	0.00706F, 0.00426F, 0.00252F, 0.00146F, 0.00082F, 0.00046F,
 };
 
-/* get coordinates of rotation and block n for the current tetrimino */
+/* Coordinates for block n with given rotation for the current tetrimino */
 static inline int
 block_x(int rotation, int n)
 {
@@ -224,7 +220,7 @@ block_y(int rotation, int n)
 }
 
 static bool
-is_difficult(enum score_type type)
+is_difficult(enum action_type type)
 {
 	switch (type) {
 	case TETRIS:
@@ -347,19 +343,20 @@ render_hold()
 static void
 render_info()
 {
-	werase(windows[INFO]);
-	wprintw(windows[INFO], "Lines: %d\n" "Level: %d\n" "Score: %d\n" "Combo: %d\n",
+	werase(windows[STATS]);
+	wprintw(windows[STATS], "Lines: %d\n" "Level: %d\n" "Score: %d\n" "Combo: %d\n",
 							game.lines_cleared, game.level, game.score, game.combo);
-	wrefresh(windows[INFO]);
+	wrefresh(windows[STATS]);
 }
 
 static void
-render_announce(enum score_type type, bool back_to_back)
+render_announce(enum action_type type, bool back_to_back)
 {
-    werase(windows[ANNOUNCE]);
-    wprintw(windows[ANNOUNCE], "%s %15s",
-	    	ACTION_TEXT[type], (back_to_back) ? "Back to Back" : "");
-    wrefresh(windows[ANNOUNCE]);
+    werase(windows[ACTION]);
+	int pad = (20 - strlen(ACTION_TEXT[type])) / 2;
+    wprintw(windows[ACTION], "%*s%s", pad, "", ACTION_TEXT[type]);
+    mvwprintw(windows[ACTION], 1, 5, "%s", (back_to_back) ? "BACK TO BACK" : "");
+    wrefresh(windows[ACTION]);
 }
 
 static void
@@ -502,9 +499,9 @@ spawn_tetrimino(enum tetrimino_type type)
 static void
 update_score(int lines)
 {
-	enum score_type score_type = (game.tspin != NONE) ? game.tspin + lines : lines;
-	bool back_to_back = is_difficult(score_type) && game.back_to_back;
-	double score = ACTION_POINTS[score_type] * ((back_to_back) ? 1.5 : 1);
+	enum action_type action = (game.tspin != NONE) ? game.tspin + lines : lines;
+	bool back_to_back = is_difficult(action) && game.back_to_back;
+	double score = ACTION_POINTS[action] * ((back_to_back) ? 1.5 : 1);
 
 	/* combo bonuses */
 	score += 50 * (game.combo < 0 ? 0 : game.combo);
@@ -514,14 +511,14 @@ update_score(int lines)
 		score += (back_to_back) ? 3200 : ACTION_POINTS[PERFECT_SINGLE + lines];
 
 	game.score += (int) (score * game.level);
-	render_announce(score_type, back_to_back);
+	render_announce(action, back_to_back);
 
 	/* new level every 10 line clears */
 	game.lines_cleared += lines;
 	game.level = (game.lines_cleared / 10) + 1;
 
 	game.combo = (lines == 0) ? -1 : game.combo + 1;
-	game.back_to_back = is_difficult(score_type);
+	game.back_to_back = is_difficult(action);
 }
 
 /* Clear filled rows and shifts rows down. Returns lines cleared */
@@ -810,10 +807,10 @@ game_init()
 
     windows[GRID] = newwin(GRID_H, GRID_W, GRID_Y, GRID_X);
     windows[HOLD] = newwin(BOX_H, BOX_W, GRID_Y, GRID_X - BOX_W - 5);
-    windows[INFO] = newwin(INFO_H, INFO_W, LINES / 2, GRID_X - INFO_W);
+    windows[STATS] = newwin(INFO_H, INFO_W, LINES / 2, GRID_X - INFO_W);
 
     windows[PREVIEW] = newwin(N_PREVIEW * BOX_H, BOX_W, GRID_Y, GRID_X + GRID_W);
-    windows[ANNOUNCE] = newwin(1, 20, GRID_Y + GRID_H + 1, GRID_X);
+    windows[ACTION] = newwin(2, 20, GRID_Y + GRID_H, GRID_X);
 
 	/* seed random */
 	srand(time(NULL));
