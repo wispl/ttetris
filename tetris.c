@@ -68,13 +68,6 @@ static const char* ACTION_TEXT[] = { FOR_EACH_ACTION(GENERATE_TEXT) };
 enum tetrimino_type { EMPTY = -1, I, J, L, O, S, T, Z };
 enum window_type { GRID, PREVIEW, HOLD, STATS, ACTION, NWINDOWS };
 
-/* Representation of a tetrimino */
-struct tetrimino {
-	enum tetrimino_type type;
-	int rotation;
-	int x, y;
-};
-
 /* Game structure, holds all revelant information related to a game */
 struct game_state {
 	bool has_lost;
@@ -83,7 +76,12 @@ struct game_state {
 	/* state of the grid, contains only placed pieces and emtpty cells */
 	enum tetrimino_type grid[MAX_ROW][MAX_COL];
 	/* current piece */
-	struct tetrimino tetrimino;
+	struct tetrimino {
+		enum tetrimino_type type;
+		int rotation;
+		int x, y;
+	} tetrimino;
+
 	/* y-coordinate of the ghost piece */
 	int ghost_y;
 
@@ -503,7 +501,8 @@ spawn_tetrimino(enum tetrimino_type type)
 static void
 update_score(int lines)
 {
-	enum action_type action = (game.tspin != NONE) ? game.tspin + lines : lines;
+	/* where there are no tspin, game.tspin is NONE or 0 */
+	enum action_type action = lines + game.tspin;
 	bool back_to_back = is_difficult(action) && game.back_to_back;
 	double score = ACTION_POINTS[action] * ((back_to_back) ? 1.5 : 1);
 
