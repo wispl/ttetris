@@ -180,7 +180,6 @@ static const int KICKTABLE[2][2][4][4][2] = {
 		 {{ 1, 0}, { 1,  1}, {0, -2}, { 1, -2}},	// 1>>0
 		 {{-1, 0}, {-1, -1}, {0,  2}, {-1,  2}},	// 2>>1
 		 {{-1, 0}, {-1,  1}, {0, -2}, {-1, -2}}},   // 3>>2 
-
 		/* clockwise */
 		{{{-1, 0}, {-1, -1}, {0,  2}, {-1,  2}},	// 0>>1
 		 {{ 1, 0}, { 1,  1}, {0, -2}, { 1, -2}},	// 1>>2
@@ -194,7 +193,6 @@ static const int KICKTABLE[2][2][4][4][2] = {
 		 {{ 2, 0}, {-1, 0}, { 2, -1}, {-1,  2}}, 	// 1>>0
 		 {{ 1, 0}, {-2, 0}, { 1,  2}, {-2, -1}}, 	// 2>>1
 		 {{-2, 0}, { 1, 0}, {-2,  1}, { 1, -2}}},	// 3>>2 
-
 		/* clockwise */
 		{{{-2, 0}, { 1, 0}, {-2,  1}, { 1, -2}}, 	// 0>>1
 		 {{-1, 0}, { 2, 0}, {-1, -2}, { 2,  1}}, 	// 1>>2
@@ -345,7 +343,7 @@ render_hold()
 }
 
 static void
-render_info()
+render_stats()
 {
 	werase(windows[STATS]);
 	wprintw(windows[STATS], "Lines: %d\n" "Level: %d\n" "Score: %d\n" "Combo: %d\n",
@@ -777,7 +775,7 @@ game_render()
 	} else {
 		render_grid();
 		render_hold();
-		render_info();
+		render_stats();
 		render_preview();
 	}
 }
