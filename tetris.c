@@ -35,8 +35,8 @@
 #define BOX_W         4 * CELL_WIDTH + 2 * BORDER_WIDTH
 #define BOX_H         3 + 2 * BORDER_WIDTH
 
-#define INFO_W        20
-#define INFO_H        8
+#define STATS_W       20
+#define STATS_H       8
 
 /* Action mapping of enum, text, and points */
 #define FOR_EACH_ACTION(X) \
@@ -112,6 +112,7 @@ struct game_state {
 	int level;
 	int lines_cleared;
 	int score;
+	int high_score;
 	int combo;
 
 	enum action_type tspin;
@@ -344,8 +345,17 @@ static void
 render_stats()
 {
 	werase(windows[STATS]);
-	wprintw(windows[STATS], "Lines: %d\n" "Level: %d\n" "Score: %d\n" "Combo: %d\n",
-							game.lines_cleared, game.level, game.score, game.combo);
+	wprintw(windows[STATS],
+			"Lines: %d\n"
+			"Level: %d\n"
+			"Score: %d\n"
+			"High Score: %d\n"
+			"Combo: %d\n",
+			game.lines_cleared,
+			game.level,
+			game.score,
+			game.high_score,
+			game.combo);
 	wrefresh(windows[STATS]);
 }
 
@@ -566,6 +576,7 @@ place_tetrimino()
 	/* check for overflow only after lines have been cleared */ 
 	if (!row_empty(1)) {
 		game.has_lost = true;
+		game.high_score = (game.score > game.high_score) ? game.score : game.high_score;
 		return;
 	}
 
@@ -661,13 +672,16 @@ static void
 game_reset()
 {
 	game.running = true;
+	game.has_lost = false;
+
 	game.hold = EMPTY;
 	game.has_held = false;
-	game.accumulator = 0.0F;
-	game.piece_lock = false;
-	game.move_reset = 0;
 	game.bag_index = 0;
-	game.has_lost = false;
+
+	game.accumulator = 0.0F;
+	game.move_reset = 0;
+	game.piece_lock = false;
+
 	game.level = 1;
 	game.lines_cleared = 0;
 	game.score = 0;
@@ -813,12 +827,12 @@ game_init()
 	init_pair(T + 2, COLOR_MAGENTA, COLOR_BLACK);
 	init_pair(Z + 2, COLOR_RED, COLOR_BLACK);
 
-    windows[GRID] = newwin(GRID_H, GRID_W, GRID_Y, GRID_X);
-    windows[HOLD] = newwin(BOX_H, BOX_W, GRID_Y, GRID_X - BOX_W - 5);
-    windows[STATS] = newwin(INFO_H, INFO_W, LINES / 2, GRID_X - INFO_W);
+    windows[GRID]   = newwin(GRID_H, GRID_W, GRID_Y, GRID_X);
+    windows[HOLD]   = newwin(BOX_H, BOX_W, GRID_Y, GRID_X - BOX_W - 5);
+    windows[STATS]  = newwin(STATS_H, STATS_W, LINES / 2, GRID_X - STATS_W);
+    windows[ACTION] = newwin(2, GRID_W, GRID_Y + GRID_H, GRID_X);
 
     windows[PREVIEW] = newwin(N_PREVIEW * BOX_H, BOX_W, GRID_Y, GRID_X + GRID_W);
-    windows[ACTION] = newwin(2, 20, GRID_Y + GRID_H, GRID_X);
 
 	/* seed random */
 	srand(time(NULL));
