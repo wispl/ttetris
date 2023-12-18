@@ -12,33 +12,31 @@
 #include <ncurses/ncurses.h>
 #endif
 
-/* grid dimensions */
-#define EXTRA_ROWS  2
-#define MAX_ROW     22
-#define MAX_COL     10
-
-/* bag settings */
-#define BAGSIZE     		7
-#define N_PREVIEW   		5
-#define LOCK_DELAY  		0.5F
-#define ACTION_TEXT_EXPIRE  2.0F
-
 #define BORDER_WIDTH  1
 #define CELL_WIDTH    2
 
+/* Grid, MAX_ROW & MAX_COL are for arrays*/
+#define MAX_ROW       22
+#define MAX_COL       10
 #define GRID_X        (COLS / 2) - (MAX_ROW / 2)
 #define GRID_Y        (LINES - MAX_ROW) / 2
 #define GRID_H        (MAX_ROW - 2) + 2 * BORDER_WIDTH
 #define GRID_W        MAX_COL * CELL_WIDTH + BORDER_WIDTH * 2
-
-/* space needed to place tetrmino within a box */
+#define EXTRA_ROWS    2
+/* A box with enough space to fit any tetrimino */
 #define BOX_W         4 * CELL_WIDTH + 2 * BORDER_WIDTH
 #define BOX_H         3 + 2 * BORDER_WIDTH
-
+/* Stats section */
 #define STATS_W       20
 #define STATS_H       8
 
-/* Action mapping of enum, text, and points */
+/* game configuration */
+#define BAGSIZE     		7
+#define NPREVIEW   			5
+#define LOCK_DELAY  		0.5F
+#define ACTION_TEXT_EXPIRE  2.0F
+
+/* Action mapping of (enum, text, and points) */
 #define FOR_EACH_ACTION(X) \
 	X(NONE, , 0) \
 	X(SINGLE, SINGLE, 100) \
@@ -61,12 +59,12 @@
 #define GENERATE_TEXT(ENUM, TEXT, POINTS) #TEXT,
 #define GENERATE_POINTS(ENUM, TEXT, POINTS) POINTS,
 
-enum action_type { FOR_EACH_ACTION(GENERATE_ENUM) };
+enum action_type    { FOR_EACH_ACTION(GENERATE_ENUM) };
+enum tetrimino_type { EMPTY = -1, I, J, L, O, S, T, Z };
+enum window_type    { GRID, PREVIEW, HOLD, STATS, ACTION, NWINDOWS };
+
 static const int ACTION_POINTS[] = { FOR_EACH_ACTION(GENERATE_POINTS) };
 static const char* ACTION_TEXT[] = { FOR_EACH_ACTION(GENERATE_TEXT) };
-
-enum tetrimino_type { EMPTY = -1, I, J, L, O, S, T, Z };
-enum window_type { GRID, PREVIEW, HOLD, STATS, ACTION, NWINDOWS };
 
 /* Game structure, holds all revelant information related to a game */
 struct game_state {
@@ -322,10 +320,9 @@ static void
 render_preview()
 {
 	werase(windows[PREVIEW]);
-	for (int p = 0; p < N_PREVIEW; ++p) {
-		render_tetrimino(windows[PREVIEW], 
-						 game.bag[(game.bag_index + p) % BAGSIZE], 
-						 p * 3);
+	for (int p = 0; p < NPREVIEW; ++p) {
+		enum tetrimino_type type = game.bag[(game.bag_index + p) % BAGSIZE];
+		render_tetrimino(windows[PREVIEW], type, p * 3);
 	}
 
 	box(windows[PREVIEW], 0, 0);
@@ -365,7 +362,7 @@ render_announce(enum action_type type, bool back_to_back)
 	clock_gettime(CLOCK_MONOTONIC, &game.action_start);
 
     werase(windows[ACTION]);
-	int pad = ((20 - strlen(ACTION_TEXT[type])) / 2) + 1;
+	int pad = (GRID_W - strlen(ACTION_TEXT[type])) / 2;
     wprintw(windows[ACTION], "%*s%s", pad, "", ACTION_TEXT[type]);
     mvwprintw(windows[ACTION], 1, 5, "%s", (back_to_back) ? "BACK TO BACK" : "");
     wrefresh(windows[ACTION]);
@@ -440,6 +437,9 @@ tetrimino_valid(int rotation, int x_offset, int y_offset)
 static void
 check_tspin(int kick_test)
 {
+	/* list of corners, clockwise from base rotation, a sliding window is used 
+	 * to get the correct corners based on rotation.
+	 */
 	static const int corners[4][2] = { {0, 0}, {2, 0}, {2, 2}, {0, 2} };
 	/* filled corners, front-left, front-right, back-right, back-left */
 	bool filled[4];
@@ -616,7 +616,7 @@ controls_rotate(int rotate_by)
 	/* natural rotation failed, attempt kicktable rotations */
 	int direction = rotate_by < 0 ? 0 : 1;
 	bool is_I = game.tetrimino.type == I;
-	for (int n = 0; n < 4; n++) {
+	for (int n = 0; n < 4; ++n) {
 		const int *offset = KICKTABLE[is_I][direction][game.tetrimino.rotation][n];
 
 		if (tetrimino_valid(rotation, offset[0], offset[1])) {
@@ -669,7 +669,7 @@ controls_hold()
 
 /* reset game to its initial state and prepare for a new game */
 static void
-game_reset()
+reset_game()
 {
 	game.running = true;
 	game.has_lost = false;
@@ -735,7 +735,7 @@ game_input()
 		controls_hold();
 		break;
 	case 'r':
-		game_reset();
+		reset_game();
 		break;
 	case 'q':
 		game.running = false;
@@ -803,7 +803,7 @@ void
 game_init()
 {
 	if (game.running) {
-		fprintf(stderr, "ERROR: game and ncurses was initialized twice!");
+		fprintf(stderr, "ERROR: ncurses was initialized twice!");
 		abort();
 	}
 
@@ -827,16 +827,14 @@ game_init()
 	init_pair(T + 2, COLOR_MAGENTA, COLOR_BLACK);
 	init_pair(Z + 2, COLOR_RED, COLOR_BLACK);
 
-    windows[GRID]   = newwin(GRID_H, GRID_W, GRID_Y, GRID_X);
-    windows[HOLD]   = newwin(BOX_H, BOX_W, GRID_Y, GRID_X - BOX_W - 5);
-    windows[STATS]  = newwin(STATS_H, STATS_W, LINES / 2, GRID_X - STATS_W);
-    windows[ACTION] = newwin(2, GRID_W, GRID_Y + GRID_H, GRID_X);
+    windows[GRID]    = newwin(GRID_H, GRID_W, GRID_Y, GRID_X);
+    windows[HOLD]    = newwin(BOX_H, BOX_W, GRID_Y, GRID_X - BOX_W - 5);
+    windows[STATS]   = newwin(STATS_H, STATS_W, LINES / 2, GRID_X - STATS_W);
+    windows[ACTION]  = newwin(2, GRID_W, GRID_Y + GRID_H, GRID_X);
+    windows[PREVIEW] = newwin(NPREVIEW * BOX_H, BOX_W, GRID_Y, GRID_X + GRID_W);
 
-    windows[PREVIEW] = newwin(N_PREVIEW * BOX_H, BOX_W, GRID_Y, GRID_X + GRID_W);
-
-	/* seed random */
 	srand(time(NULL));
-	game_reset();
+	reset_game();
 }
 
 void
