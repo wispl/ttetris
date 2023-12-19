@@ -710,37 +710,39 @@ reset_game()
 void
 game_input()
 {
-	switch (getch()) {
-	case KEY_LEFT:
-		controls_move(-1, 0);
-		break;
-	case KEY_RIGHT:
-		controls_move(1, 0);
-		break;
-	case KEY_UP:
-		controls_move(0, 1);
-		break;
-	case KEY_DOWN:
-		controls_harddrop();
-		break;
-	case 'x':
-		controls_rotate(1);
-		break;
-	case 'z':
-		controls_rotate(-1);
-		break;
-	case 'c':
-		controls_hold();
-		break;
-	case 'r':
-		reset_game();
-		break;
-	case 'q':
-		game.running = false;
-		break;
-	default:
-		return;
+	int key = getch();
+	if (!game.has_lost) {
+		switch (key) {
+		case KEY_LEFT:
+			controls_move(-1, 0);
+			break;
+		case KEY_RIGHT:
+			controls_move(1, 0);
+			break;
+		case KEY_UP:
+			controls_move(0, 1);
+			break;
+		case KEY_DOWN:
+			controls_harddrop();
+			break;
+		case 'x':
+			controls_rotate(1);
+			break;
+		case 'z':
+			controls_rotate(-1);
+			break;
+		case 'c':
+			controls_hold();
+			break;
+		case 'q':
+			game.running = false;
+			break;
+		default:
+			break;
+		}
 	}
+	if (key == 'r')
+		reset_game();
 }
 
 void
