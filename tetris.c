@@ -443,7 +443,7 @@ check_tspin(int kick_test)
 	 * to get the correct corners based on rotation.
 	 */
 	static const int corners[4][2] = { {0, 0}, {2, 0}, {2, 2}, {0, 2} };
-	/* filled corners, front-left, front-right, back-right, back-left */
+	/* filled corners: front-left, front-right, back-right, back-left */
 	bool filled[4];
 
 	for (int i = 0; i < 4; ++i) {
@@ -533,8 +533,9 @@ update_score(int lines)
 	game.level = (game.lines_cleared / 10) + 1;
 
 	game.combo = (lines == 0) ? -1 : game.combo + 1;
-	/* MINI-TSPIN and TSPIN maintain back to back, even if they give no bonuses */
-	game.back_to_back = !back_to_back && (action == MINI_TSPIN || action == TSPIN);
+	/* these are the only actions which can break the chain */
+	game.back_to_back = (action != NONE && action != SINGLE && action != SINGLE
+			     		 && action != DOUBLE && action != TRIPLE);
 }
 
 /* Clear filled rows and shifts rows down. Returns lines cleared */
@@ -677,6 +678,10 @@ reset_game()
 	int highscore = game.high_score;
 	game = (struct game_state) {0};
 	game.running = true;
+	game.has_held = false;
+	game.has_lost = false;
+	game.back_to_back = false;
+	game.piece_lock = false;
 	game.hold = EMPTY;
 	game.tspin = NONE;
 	game.level = 1;
