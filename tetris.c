@@ -671,30 +671,20 @@ controls_hold()
 static void
 reset_game()
 {
+	int highscore = game.high_score;
+	game = (struct game_state) {0};
 	game.running = true;
-	game.has_lost = false;
-
 	game.hold = EMPTY;
-	game.has_held = false;
-	game.bag_index = 0;
-
-	game.accumulator = 0.0F;
-	game.move_reset = 0;
-	game.piece_lock = false;
-
-	game.level = 1;
-	game.lines_cleared = 0;
-	game.score = 0;
-	game.combo = -1;
 	game.tspin = NONE;
-	game.back_to_back = false;
+	game.level = 1;
+	game.combo = -1;
+	game.high_score = highscore;
 
 	for (int y = 0; y < MAX_ROW; ++y) {
 		for (int x = 0; x < MAX_COL; ++x)
 			game.grid[y][x] = EMPTY;
 	}
 
-	/* set initial state of bags */
 	enum tetrimino_type initial_bag[BAGSIZE] = {I, J, L, O, S, T, Z};
 	memcpy(game.bag, initial_bag, sizeof(initial_bag));
 	memcpy(game.shuffle_bag, initial_bag, sizeof(initial_bag));
