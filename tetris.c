@@ -170,7 +170,7 @@ static const int ROTATIONS[7][4][4][2] = {
  * the current rotation of the tetrimino.
  */
 static const int KICKTABLE[2][2][4][4][2] = {
-	/* mappings for "J L S Z T" */
+	/* tests for "J L S Z T" */
 	{ 
 		/* counterclockwise */
 		{{{ 1, 0}, { 1, -1}, {0,  2}, { 1,  2}},	// 0>>3
@@ -183,7 +183,7 @@ static const int KICKTABLE[2][2][4][4][2] = {
 		 {{ 1, 0}, { 1, -1}, {0,  2}, { 1,  2}},	// 2>>3
 		 {{-1, 0}, {-1,  1}, {0, -2}, {-1, -2}}},  	// 3>>0
 	},
-	/* mapping for "I", "O" has no mapping */
+	/* tests for "I" */
 	{
 		/* counterclockwise */
 		{{{-1, 0}, { 2, 0}, {-1, -2}, { 2,  1}}, 	// 0>>3
@@ -218,14 +218,15 @@ block_y(int rotation, int n)
 	return game.tetrimino.y + ROTATIONS[game.tetrimino.type][rotation][n][1];
 }
 
+/* Actions which can maintain a back-to-back */
 static bool
 is_difficult(enum action_type type)
 {
 	switch (type) {
 	case TETRIS:
 	case MINI_TSPIN_SINGLE:
-	case TSPIN_SINGLE:
 	case MINI_TSPIN_DOUBLE:
+	case TSPIN_SINGLE:
 	case TSPIN_DOUBLE:
 	case TSPIN_TRIPLE:
 	case PERFECT_TETRIS:		
@@ -284,8 +285,9 @@ render_active_tetrimino(bool ghost)
 {
 	for (int n = 0; n < 4; ++n) {
 		int x = 2 * block_x(game.tetrimino.rotation, n);
-		int y = block_y(game.tetrimino.rotation, n)
-			  + (ghost * (game.ghost_y - game.tetrimino.y));
+		int y = block_y(game.tetrimino.rotation, n);
+		/* use game.ghost_y instead of game.tetrimino.y for ghost pieces*/
+		y += (ghost * (game.ghost_y - game.tetrimino.y));
 		chtype c = ghost ? '/' : block_chtype(game.tetrimino.type);
 
 		if (y < EXTRA_ROWS) 
@@ -531,7 +533,8 @@ update_score(int lines)
 	game.level = (game.lines_cleared / 10) + 1;
 
 	game.combo = (lines == 0) ? -1 : game.combo + 1;
-	game.back_to_back = is_difficult(action);
+	/* MINI-TSPIN and TSPIN maintain back to back, even if they give no bonuses */
+	game.back_to_back = !back_to_back && (action == MINI_TSPIN || action == TSPIN);
 }
 
 /* Clear filled rows and shifts rows down. Returns lines cleared */
@@ -741,7 +744,6 @@ game_update()
 	struct timespec time_now;
 	clock_gettime(CLOCK_MONOTONIC, &time_now);
 
-	/* delta time calculation */
 	game.accumulator += diff_timespec(&time_now, &game.time_prev);
 	game.time_prev = time_now;
 
@@ -753,7 +755,7 @@ game_update()
 			game.tetrimino.y += 1;
 		}
 	} else {
-		/* start timer for autoplacement if tetrimino must be placed */
+		/* start autoplacement */
 		if (!game.piece_lock) {
 			game.piece_lock = true;
 			game.lock_delay = time_now;
