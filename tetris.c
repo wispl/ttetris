@@ -291,8 +291,7 @@ render_grid()
 			waddch(windows[GRID], c);
 		}
 	}
-
-	/* Order is important, current piece should shadow the ghost piece */
+	/* Order is important, ghost should be shadowd by the actual tetrimino */
 	render_active_tetrimino(true);
 	render_active_tetrimino(false);
 
@@ -308,7 +307,6 @@ render_preview()
 		enum tetrimino_type type = game.bag[(game.bag_index + p) % BAGSIZE];
 		render_tetrimino(windows[PREVIEW], type, p * 3);
 	}
-
 	box(windows[PREVIEW], 0, 0);
 	wrefresh(windows[PREVIEW]);
 }
@@ -582,10 +580,8 @@ controls_move(int x_offset, int y_offset)
 		game.score += y_offset;
 		update_ghost();
 
-		if (x_offset != 0 && game.move_reset < 15) {
-			++game.move_reset;
+		if (game.piece_lock && ++game.move_reset < 15)
 			game.piece_lock = false;
-		}
 	}
 }
 
@@ -621,10 +617,8 @@ controls_rotate(int rotate_by)
 			if (game.tetrimino.type == T)
 				check_tspin(kick_test);
 
-			if (game.move_reset < 15) {
-				++game.move_reset;
+			if (game.piece_lock && ++game.move_reset < 15)
 				game.piece_lock = false;
-			}
 	}
 }
 
