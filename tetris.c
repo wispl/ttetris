@@ -66,58 +66,40 @@ enum window_type    { GRID, PREVIEW, HOLD, STATS, ACTION, NWINDOWS };
 static const int ACTION_POINTS[] = { FOR_EACH_ACTION(GENERATE_POINTS) };
 static const char* ACTION_TEXT[] = { FOR_EACH_ACTION(GENERATE_TEXT) };
 
-/* Game structure, holds all revelant information related to a game */
 struct game_state {
-	bool has_lost;
-	bool running;
+	bool running, has_lost;
 
-	/* state of the grid, contains only placed pieces and emtpty cells */
+	int score, high_score;
+	int level, lines_cleared; /* new level every 10 line clears */
+	int combo;                /* consecutive clears counter, resets on no clear */
+	bool back_to_back;        /* difficult line clear bonuses */
+	enum action_type tspin;   /* tspin bonuses: NONE, MINI_TSPIN or TSPIN */
+
+	float accumulator; 		      /* accumulated delta times */
+	struct timespec time_prev; 	  /* previous frame for delta time*/
+	struct timespec action_start; /* start of when action text was display, used to clear it */
+
+	bool piece_lock; 			/* piece_lock occurs when a piece has to be placed via gravity */
+	struct timespec lock_delay; /* start of lock delay for autoplacement */
+	int move_reset; 			/* piece_lock can be reset upto 15 times */
+
 	enum tetrimino_type grid[MAX_ROW][MAX_COL];
-	/* current piece */
 	struct tetrimino {
 		enum tetrimino_type type;
 		int rotation;
 		int x, y;
-	} tetrimino;
+		int ghost_y; /* preview of the tetrimino at the bottom */
+	} tetrimino;     /* currently held tetrimino */
 
-	/* y-coordinate of the ghost piece */
-	int ghost_y;
+	int bag_index; 							  /* current index in the bag */
+	enum tetrimino_type bag[BAGSIZE]; 		  /* preview and queue for pieces */
+	enum tetrimino_type shuffle_bag[BAGSIZE]; /* 7-bag shuffle system */
 
-	/* collected delta times used for updating physics */
-	float accumulator;
-	/* timestamp of previous frame */
-	struct timespec time_prev;
-
-	/* start of lock_delay */
-	struct timespec lock_delay;
-	/* whether active tetrimino is in autoplacement state */
-	bool piece_lock;
-	int move_reset;
-
-	/* start of when action text is dispalyed */
-	struct timespec action_start;
-
-	/* these bags are ring buffers and used for pieces and preview */
-	int bag_index;
-	enum tetrimino_type bag[BAGSIZE];
-	enum tetrimino_type shuffle_bag[BAGSIZE];
-
-	/* held piece */
-	enum tetrimino_type hold;
-	/* whether the player has held already */
-	bool has_held;
-
-	int level;
-	int lines_cleared;
-	int score;
-	int high_score;
-	int combo;
-
-	enum action_type tspin;
-	bool back_to_back;
+	enum tetrimino_type hold; /* held piece */
+	bool has_held;            /* hold could only be used once per piece */
 };
 
-static WINDOW* windows[NWINDOWS];
+static WINDOW* windows[NWINDOWS]; /* ncurses windows */
 static struct game_state game = {0};
 
 /* rotation mapping, indexed by [type][rotation][block][x or y] */
@@ -287,7 +269,7 @@ render_active_tetrimino(bool ghost)
 		int x = 2 * block_x(game.tetrimino.rotation, n);
 		int y = block_y(game.tetrimino.rotation, n);
 		/* use game.ghost_y instead of game.tetrimino.y for ghost pieces*/
-		y += (ghost * (game.ghost_y - game.tetrimino.y));
+		y += (ghost * (game.tetrimino.ghost_y - game.tetrimino.y));
 		chtype c = ghost ? '/' : block_chtype(game.tetrimino.type);
 
 		if (y < EXTRA_ROWS) 
@@ -473,7 +455,7 @@ update_ghost()
 	int y = 0;
 	while (tetrimino_valid(game.tetrimino.rotation, 0, y + 1))
 		++y;
-	game.ghost_y = y + game.tetrimino.y;
+	game.tetrimino.ghost_y = y + game.tetrimino.y;
 }
 
 static enum tetrimino_type
@@ -650,8 +632,8 @@ static void
 controls_harddrop()
 {
 	/* add two points for each cell harddropped */
-	game.score += (game.ghost_y - game.tetrimino.y) * 2;
-	game.tetrimino.y = game.ghost_y;
+	game.score += (game.tetrimino.ghost_y - game.tetrimino.y) * 2;
+	game.tetrimino.y = game.tetrimino.ghost_y;
 	place_tetrimino(game);
 }
 
