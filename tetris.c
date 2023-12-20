@@ -500,7 +500,6 @@ update_score(int lines)
 
 	/* combo bonuses */
 	score += 50 * (game.combo < 0 ? 0 : game.combo);
-
 	/* perfect line clear bonuses are added to regular clear bonuses */
 	if (row_empty(MAX_ROW - 1))
 		score += (back_to_back) ? 3200 : ACTION_POINTS[PERFECT_SINGLE + lines];
@@ -508,14 +507,14 @@ update_score(int lines)
 	game.score += (int) (score * game.level);
 	render_announce(action, back_to_back);
 
-	/* new level every 10 line clears */
 	game.lines_cleared += lines;
-	game.level = (game.lines_cleared / 10) + 1;
-
+	game.level = (game.lines_cleared / 10) + 1; /* new level every 10 lines */
 	game.combo = (lines == 0) ? -1 : game.combo + 1;
-	/* these are the only actions which can break the chain */
-	game.back_to_back = (action != NONE && action != SINGLE && action != SINGLE
-			     		 && action != DOUBLE && action != TRIPLE);
+	/* t-spins and mini-tspins do not break the chain */
+	if (!back_to_back && game.back_to_back)
+		game.back_to_back = (action == TSPIN || action == MINI_TSPIN);
+	else
+		game.back_to_back = is_difficult(action);
 }
 
 /* Clear filled rows and shifts rows down. Returns lines cleared */
