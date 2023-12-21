@@ -1,4 +1,5 @@
 #include "tetris.h"
+#include "extern/miniaudio.h"
 
 #include <assert.h>
 #include <stdbool.h>
@@ -101,6 +102,9 @@ struct game_state {
 
 static WINDOW* windows[NWINDOWS]; /* ncurses windows */
 static struct game_state game = {0};
+static ma_decoder audio_decoder;
+static ma_device_config audio_device_config;
+static ma_device audio_device;
 
 /* rotation mapping, indexed by [type][rotation][block][x or y] */
 static const int ROTATIONS[7][4][4][2] = {
@@ -145,10 +149,10 @@ static const int ROTATIONS[7][4][4][2] = {
  * Tests are in order from:
  * wallkicks (left and right), floorkicks, right well kicks, left well kicks
  *
- * These are alternative rotations for when the natural one fails and is chosen
+ * The tests are alternative rotations when the natural one fails and are chosen
  * based on: the current rotation and the desired rotation (from)>>(to)
  *
- * These are organized so the right rotation can is indexed using the
+ * These are organized so the right rotation can be indexed using the
  * the current rotation of the tetrimino.
  */
 static const int KICKTABLE[2][2][4][4][2] = {
@@ -773,13 +777,23 @@ game_running()
 	return game.running;
 }
 
-void
+/* callback needed for miniaudio */
+static void
+data_callback(ma_device* device, void* output, const void* input, ma_uint32 frame)
+{
+	ma_decoder* decoder = device->pUserData;
+	if (decoder == NULL)
+		return;
+	
+	ma_data_source_read_pcm_frames(decoder, output, frame, NULL);
+	(void) input;
+}
+
+int
 game_init()
 {
-	if (game.running) {
-		fprintf(stderr, "ERROR: ncurses was initialized twice!");
-		abort();
-	}
+	if (game.running)
+		return -1;
 
     /* ncurses initialization */
     initscr();
@@ -807,13 +821,44 @@ game_init()
     windows[ACTION]  = newwin(2, GRID_W, GRID_Y + GRID_H, GRID_X);
     windows[PREVIEW] = newwin(NPREVIEW * BOX_H, BOX_W, GRID_Y, GRID_X + GRID_W);
 
+	/* audio and sound initialization */
+	if (ma_decoder_init_file("Tetris.mp3", NULL, &audio_decoder) != MA_SUCCESS)
+		return -1;
+
+    ma_data_source_set_looping(&audio_decoder, MA_TRUE);
+
+    audio_device_config = ma_device_config_init(ma_device_type_playback);
+    audio_device_config.noPreSilencedOutputBuffer = true;
+    audio_device_config.playback.format   = audio_decoder.outputFormat;
+    audio_device_config.playback.channels = audio_decoder.outputChannels;
+    audio_device_config.sampleRate        = audio_decoder.outputSampleRate;
+    audio_device_config.dataCallback      = data_callback;
+    audio_device_config.pUserData         = &audio_decoder;
+    audio_device_config.noClip            = true;
+
+    if (ma_device_init(NULL, &audio_device_config, &audio_device) != MA_SUCCESS) {
+        ma_decoder_uninit(&audio_decoder);
+        return -1;
+    }
+
+    if (ma_device_start(&audio_device) != MA_SUCCESS) {
+        ma_device_uninit(&audio_device);
+        ma_decoder_uninit(&audio_decoder);
+        return -1;
+    }
+
 	srand(time(NULL));
 	reset_game();
+	return 1;
 }
 
 void
 game_destroy()
 {
-	wclear(stdscr);
-	endwin();
+	if (game.running) {
+		ma_device_uninit(&audio_device);
+		ma_decoder_uninit(&audio_decoder);
+		wclear(stdscr);
+		endwin();
+	}
 }
