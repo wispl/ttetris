@@ -32,9 +32,9 @@
 #define STATS_H       8
 
 /* game configuration */
-#define BAGSIZE     		7
-#define NPREVIEW   			5
-#define LOCK_DELAY  		0.5F
+#define BAGSIZE     	    7
+#define NPREVIEW   	    5
+#define LOCK_DELAY  	    0.5F
 #define ACTION_TEXT_EXPIRE  2.0F
 
 /* Action mapping of (enum, text, and points) */
@@ -72,17 +72,17 @@ struct game_state {
 
 	int score, high_score;
 	int level, lines_cleared; /* new level every 10 line clears */
-	int combo;                /* consecutive clears counter, resets on no clear */
+	int combo;                /* consecutive clears counter */
 	bool back_to_back;        /* difficult line clear bonuses */
 	enum action_type tspin;   /* tspin bonuses: NONE, MINI_TSPIN or TSPIN */
 
-	float accumulator; 		      /* accumulated delta times */
-	struct timespec time_prev; 	  /* previous frame for delta time*/
-	struct timespec action_start; /* start of when action text was display, used to clear it */
+	float accumulator;	      /* accumulated delta times */
+	struct timespec time_prev;    /* previous frame for delta time*/
+	struct timespec action_start; /* use to expire the action text */
 
-	bool piece_lock; 			/* piece_lock occurs when a piece has to be placed via gravity */
+	bool piece_lock;            /* autoplacement of piece due to gravity */
 	struct timespec lock_delay; /* start of lock delay for autoplacement */
-	int move_reset; 			/* piece_lock can be reset upto 15 times */
+	int move_reset; 	    /* piece_lock can be reset upto 15 times */
 
 	enum tetrimino_type grid[MAX_ROW][MAX_COL];
 	struct tetrimino {
@@ -90,10 +90,10 @@ struct game_state {
 		int rotation;
 		int x, y;
 		int ghost_y; /* preview of the tetrimino at the bottom */
-	} tetrimino;     /* currently held tetrimino */
+	} tetrimino;         /* currently held tetrimino */
 
-	int bag_index; 							  /* current index in the bag */
-	enum tetrimino_type bag[BAGSIZE]; 		  /* preview and queue for pieces */
+	int bag_index;
+	enum tetrimino_type bag[BAGSIZE]; 	  /* preview and queue */
 	enum tetrimino_type shuffle_bag[BAGSIZE]; /* 7-bag shuffle system */
 
 	enum tetrimino_type hold; /* held piece */
@@ -149,38 +149,38 @@ static const int ROTATIONS[7][4][4][2] = {
  * Tests are in order from:
  * wallkicks (left and right), floorkicks, right well kicks, left well kicks
  *
- * The tests are alternative rotations when the natural one fails and are chosen
- * based on: the current rotation and the desired rotation (from)>>(to)
+ * The tests are alternative rotations when the natural one fails and are
+ * chosen based on: the current rotation and the desired rotation (from)>>(to)
  *
  * These are organized so the right rotation can be indexed using the
  * the current rotation of the tetrimino.
  */
 static const int KICKTABLE[2][2][4][4][2] = {
 	/* tests for "J L S Z T" */
-	{ 
+	{
 		/* counterclockwise */
-		{{{ 1, 0}, { 1, -1}, {0,  2}, { 1,  2}},	// 0>>3
-		 {{ 1, 0}, { 1,  1}, {0, -2}, { 1, -2}},	// 1>>0
-		 {{-1, 0}, {-1, -1}, {0,  2}, {-1,  2}},	// 2>>1
-		 {{-1, 0}, {-1,  1}, {0, -2}, {-1, -2}}},   // 3>>2 
+		{{{ 1, 0}, { 1, -1}, {0,  2}, { 1,  2}},  // 0>>3
+		 {{ 1, 0}, { 1,  1}, {0, -2}, { 1, -2}},  // 1>>0
+		 {{-1, 0}, {-1, -1}, {0,  2}, {-1,  2}},  // 2>>1
+		 {{-1, 0}, {-1,  1}, {0, -2}, {-1, -2}}}, // 3>>2
 		/* clockwise */
-		{{{-1, 0}, {-1, -1}, {0,  2}, {-1,  2}},	// 0>>1
-		 {{ 1, 0}, { 1,  1}, {0, -2}, { 1, -2}},	// 1>>2
-		 {{ 1, 0}, { 1, -1}, {0,  2}, { 1,  2}},	// 2>>3
-		 {{-1, 0}, {-1,  1}, {0, -2}, {-1, -2}}},  	// 3>>0
+		{{{-1, 0}, {-1, -1}, {0,  2}, {-1,  2}},  // 0>>1
+		 {{ 1, 0}, { 1,  1}, {0, -2}, { 1, -2}},  // 1>>2
+		 {{ 1, 0}, { 1, -1}, {0,  2}, { 1,  2}},  // 2>>3
+		 {{-1, 0}, {-1,  1}, {0, -2}, {-1, -2}}}, // 3>>0
 	},
 	/* tests for "I" */
 	{
 		/* counterclockwise */
-		{{{-1, 0}, { 2, 0}, {-1, -2}, { 2,  1}}, 	// 0>>3
-		 {{ 2, 0}, {-1, 0}, { 2, -1}, {-1,  2}}, 	// 1>>0
-		 {{ 1, 0}, {-2, 0}, { 1,  2}, {-2, -1}}, 	// 2>>1
-		 {{-2, 0}, { 1, 0}, {-2,  1}, { 1, -2}}},	// 3>>2 
+		{{{-1, 0}, { 2, 0}, {-1, -2}, { 2,  1}},  // 0>>3
+		 {{ 2, 0}, {-1, 0}, { 2, -1}, {-1,  2}},  // 1>>0
+		 {{ 1, 0}, {-2, 0}, { 1,  2}, {-2, -1}},  // 2>>1
+		 {{-2, 0}, { 1, 0}, {-2,  1}, { 1, -2}}}, // 3>>2
 		/* clockwise */
-		{{{-2, 0}, { 1, 0}, {-2,  1}, { 1, -2}}, 	// 0>>1
-		 {{-1, 0}, { 2, 0}, {-1, -2}, { 2,  1}}, 	// 1>>2
-		 {{ 2, 0}, {-1, 0}, { 2, -1}, {-1,  2}}, 	// 2>>3
-		 {{ 1, 0}, {-2, 0}, { 1,  2}, {-2, -1}}},	// 3>>0
+		{{{-2, 0}, { 1, 0}, {-2,  1}, { 1, -2}},  // 0>>1
+		 {{-1, 0}, { 2, 0}, {-1, -2}, { 2,  1}},  // 1>>2
+		 {{ 2, 0}, {-1, 0}, { 2, -1}, {-1,  2}},  // 2>>3
+		 {{ 1, 0}, {-2, 0}, { 1,  2}, {-2, -1}}}, // 3>>0
 	}
 };
 
@@ -193,15 +193,15 @@ static const float gravity_table[20] = {
 
 /* Coordinates for block n with given rotation for the current tetrimino */
 static inline int
-block_x(int rotation, int n)
+block_x(int rot, int n)
 {
-	return game.tetrimino.x + ROTATIONS[game.tetrimino.type][rotation][n][0];
+	return game.tetrimino.x + ROTATIONS[game.tetrimino.type][rot][n][0];
 }
 
 static inline int
-block_y(int rotation, int n)
+block_y(int rot, int n)
 {
-	return game.tetrimino.y + ROTATIONS[game.tetrimino.type][rotation][n][1];
+	return game.tetrimino.y + ROTATIONS[game.tetrimino.type][rot][n][1];
 }
 
 /* Actions which can maintain a back-to-back */
@@ -272,14 +272,16 @@ render_active_tetrimino(bool ghost)
 	for (int n = 0; n < 4; ++n) {
 		int x = 2 * block_x(game.tetrimino.rotation, n);
 		int y = block_y(game.tetrimino.rotation, n);
-		/* use game.ghost_y instead of game.tetrimino.y for ghost pieces*/
+		/* use game.ghost_y instead for ghost pieces*/
 		y += (ghost * (game.tetrimino.ghost_y - game.tetrimino.y));
 		chtype c = ghost ? '/' : block_chtype(game.tetrimino.type);
 
-		if (y < EXTRA_ROWS) 
+		if (y < EXTRA_ROWS)
 			continue;
 
-		mvwaddch(windows[GRID], BORDER_WIDTH + y - EXTRA_ROWS, BORDER_WIDTH + x, c);
+		int row = BORDER_WIDTH + y - EXTRA_ROWS;
+		int col = BORDER_WIDTH + x;
+		mvwaddch(windows[GRID], row, col, c);
 		waddch(windows[GRID], c);
 	}
 }
@@ -288,14 +290,15 @@ static void
 render_grid()
 {
 	for (int y = EXTRA_ROWS; y < MAX_ROW; ++y) {
-		wmove(windows[GRID], BORDER_WIDTH + y - EXTRA_ROWS, BORDER_WIDTH);
+		int row = BORDER_WIDTH + y - EXTRA_ROWS;
+		wmove(windows[GRID], row, BORDER_WIDTH);
 		for (int x = 0; x < MAX_COL; ++x) {
 			chtype c = block_chtype(game.grid[y][x]);
 			waddch(windows[GRID], c);
 			waddch(windows[GRID], c);
 		}
 	}
-	/* Order is important, ghost should be shadowd by the actual tetrimino */
+	/* Actual tetrimino should cover the ghost preview */
 	render_active_tetrimino(true);
 	render_active_tetrimino(false);
 
@@ -308,7 +311,8 @@ render_preview()
 {
 	werase(windows[PREVIEW]);
 	for (int p = 0; p < NPREVIEW; ++p) {
-		enum tetrimino_type type = game.bag[(game.bag_index + p) % BAGSIZE];
+		int index = (game.bag_index + p) % BAGSIZE;
+		enum tetrimino_type type = game.bag[index];
 		render_tetrimino(windows[PREVIEW], type, p * 3);
 	}
 	box(windows[PREVIEW], 0, 0);
@@ -347,20 +351,24 @@ render_announce(enum action_type type, bool back_to_back)
 {
 	clock_gettime(CLOCK_MONOTONIC, &game.action_start);
 
-    werase(windows[ACTION]);
+	werase(windows[ACTION]);
 	int pad = (GRID_W - strlen(ACTION_TEXT[type])) / 2;
-    wprintw(windows[ACTION], "%*s%s", pad, "", ACTION_TEXT[type]);
-    mvwprintw(windows[ACTION], 1, 5, "%s", (back_to_back) ? "BACK TO BACK" : "");
-    wrefresh(windows[ACTION]);
+	wprintw(windows[ACTION], "%*s%s", pad, "", ACTION_TEXT[type]);
+	mvwprintw(windows[ACTION],
+	   	  1,
+	   	  5,
+	   	  "%s",
+	   	  (back_to_back) ? "BACK TO BACK" : "");
+	wrefresh(windows[ACTION]);
 }
 
 static void
 render_gameover()
 {
-    werase(windows[GRID]);
-    mvwprintw(windows[GRID], 5, 5, "You lost!\n   Press R to restart");
-    box(windows[GRID], 0, 0);
-    wrefresh(windows[GRID]);
+	werase(windows[GRID]);
+	mvwprintw(windows[GRID], 5, 5, "You lost!\n   Press R to restart");
+	box(windows[GRID], 0, 0);
+	wrefresh(windows[GRID]);
 }
 
 /*** Grid ***/
@@ -423,9 +431,7 @@ tetrimino_valid(int rotation, int x_offset, int y_offset)
 static void
 check_tspin(int kick_test)
 {
-	/* list of corners, clockwise from base rotation, a sliding window is used 
-	 * to get the correct corners based on rotation.
-	 */
+	/* list of corners clockwise, starting index is current rotation */
 	static const int corners[4][2] = { {0, 0}, {2, 0}, {2, 2}, {0, 2} };
 	/* filled corners: front-left, front-right, back-right, back-left */
 	bool filled[4];
@@ -433,7 +439,7 @@ check_tspin(int kick_test)
 	for (int i = 0; i < 4; ++i) {
 		int index = (game.tetrimino.rotation + i) & 3;
 		filled[i] = !block_valid(corners[index][0] + game.tetrimino.x,
-								 corners[index][1] + game.tetrimino.y);
+			   		 corners[index][1] + game.tetrimino.y);
 	}
 
 	if (filled[0] && filled[1] && (filled[2] || filled[3])) {
@@ -563,7 +569,9 @@ place_tetrimino()
 	/* check for overflow only after lines have been cleared */ 
 	if (!row_empty(1)) {
 		game.has_lost = true;
-		game.high_score = (game.score > game.high_score) ? game.score : game.high_score;
+		game.high_score = (game.score > game.high_score)
+				? game.score
+				: game.high_score;
 		return;
 	}
 
@@ -614,14 +622,14 @@ controls_rotate(int rotate_by)
 
 	return;
 	success: {
-			game.tetrimino.rotation = rotation;
-			update_ghost();
+		game.tetrimino.rotation = rotation;
+		update_ghost();
 
-			if (game.tetrimino.type == T)
-				check_tspin(kick_test);
+		if (game.tetrimino.type == T)
+		check_tspin(kick_test);
 
-			if (game.piece_lock && ++game.move_reset < 15)
-				game.piece_lock = false;
+		if (game.piece_lock && ++game.move_reset < 15)
+			game.piece_lock = false;
 	}
 }
 
@@ -690,38 +698,41 @@ void
 game_input()
 {
 	int key = getch();
-	if (!game.has_lost) {
-		switch (key) {
-		case KEY_LEFT:
-			controls_move(-1, 0);
-			break;
-		case KEY_RIGHT:
-			controls_move(1, 0);
-			break;
-		case KEY_UP:
-			controls_move(0, 1);
-			break;
-		case KEY_DOWN:
-			controls_harddrop();
-			break;
-		case 'x':
-			controls_rotate(1);
-			break;
-		case 'z':
-			controls_rotate(-1);
-			break;
-		case 'c':
-			controls_hold();
-			break;
-		case 'q':
-			game.running = false;
-			break;
-		default:
-			break;
-		}
-	}
-	if (key == 'r')
+	if (game.has_lost && key == 'r') {
 		reset_game();
+		return;
+	}
+	switch (key) {
+	case KEY_LEFT:
+		controls_move(-1, 0);
+		break;
+	case KEY_RIGHT:
+		controls_move(1, 0);
+		break;
+	case KEY_UP:
+		controls_move(0, 1);
+		break;
+	case KEY_DOWN:
+		controls_harddrop();
+		break;
+	case 'x':
+		controls_rotate(1);
+		break;
+	case 'z':
+		controls_rotate(-1);
+		break;
+	case 'c':
+		controls_hold();
+		break;
+	case 'r':
+		reset_game();
+		break;
+	case 'q':
+		game.running = false;
+		break;
+	default:
+		break;
+	}
 }
 
 void
@@ -795,13 +806,13 @@ game_init()
 	if (game.running)
 		return -1;
 
-    /* ncurses initialization */
-    initscr();
-    cbreak();
-    noecho();
-    curs_set(0);
-    keypad(stdscr, TRUE);
-    nodelay(stdscr, TRUE);
+	/* ncurses initialization */
+	initscr();
+	cbreak();
+	noecho();
+	curs_set(0);
+	keypad(stdscr, TRUE);
+	nodelay(stdscr, TRUE);
 
 	/* TODO: add check if terminal supports color */
 	start_color();
@@ -815,37 +826,37 @@ game_init()
 	init_pair(T + 2, COLOR_MAGENTA, COLOR_BLACK);
 	init_pair(Z + 2, COLOR_RED, COLOR_BLACK);
 
-    windows[GRID]    = newwin(GRID_H, GRID_W, GRID_Y, GRID_X);
-    windows[HOLD]    = newwin(BOX_H, BOX_W, GRID_Y, GRID_X - BOX_W - 5);
-    windows[STATS]   = newwin(STATS_H, STATS_W, LINES / 2, GRID_X - STATS_W);
-    windows[ACTION]  = newwin(2, GRID_W, GRID_Y + GRID_H, GRID_X);
-    windows[PREVIEW] = newwin(NPREVIEW * BOX_H, BOX_W, GRID_Y, GRID_X + GRID_W);
+	windows[GRID]    = newwin(GRID_H, GRID_W, GRID_Y, GRID_X);
+	windows[HOLD]    = newwin(BOX_H, BOX_W, GRID_Y, GRID_X - BOX_W - 5);
+	windows[STATS]   = newwin(STATS_H, STATS_W, LINES / 2, GRID_X - STATS_W);
+	windows[ACTION]  = newwin(2, GRID_W, GRID_Y + GRID_H, GRID_X);
+	windows[PREVIEW] = newwin(NPREVIEW * BOX_H, BOX_W, GRID_Y, GRID_X + GRID_W);
 
 	/* audio and sound initialization */
 	if (ma_decoder_init_file("assets/tetris.mp3", NULL, &audio_decoder) != MA_SUCCESS)
+	return -1;
+
+	ma_data_source_set_looping(&audio_decoder, MA_TRUE);
+
+	audio_device_config = ma_device_config_init(ma_device_type_playback);
+	audio_device_config.noPreSilencedOutputBuffer = true;
+	audio_device_config.playback.format   = audio_decoder.outputFormat;
+	audio_device_config.playback.channels = audio_decoder.outputChannels;
+	audio_device_config.sampleRate        = audio_decoder.outputSampleRate;
+	audio_device_config.dataCallback      = data_callback;
+	audio_device_config.pUserData         = &audio_decoder;
+	audio_device_config.noClip            = true;
+
+	if (ma_device_init(NULL, &audio_device_config, &audio_device) != MA_SUCCESS) {
+		ma_decoder_uninit(&audio_decoder);
 		return -1;
+	}
 
-    ma_data_source_set_looping(&audio_decoder, MA_TRUE);
-
-    audio_device_config = ma_device_config_init(ma_device_type_playback);
-    audio_device_config.noPreSilencedOutputBuffer = true;
-    audio_device_config.playback.format   = audio_decoder.outputFormat;
-    audio_device_config.playback.channels = audio_decoder.outputChannels;
-    audio_device_config.sampleRate        = audio_decoder.outputSampleRate;
-    audio_device_config.dataCallback      = data_callback;
-    audio_device_config.pUserData         = &audio_decoder;
-    audio_device_config.noClip            = true;
-
-    if (ma_device_init(NULL, &audio_device_config, &audio_device) != MA_SUCCESS) {
-        ma_decoder_uninit(&audio_decoder);
-        return -1;
-    }
-
-    if (ma_device_start(&audio_device) != MA_SUCCESS) {
-        ma_device_uninit(&audio_device);
-        ma_decoder_uninit(&audio_decoder);
-        return -1;
-    }
+	if (ma_device_start(&audio_device) != MA_SUCCESS) {
+		ma_device_uninit(&audio_device);
+		ma_decoder_uninit(&audio_decoder);
+		return -1;
+	}
 
 	srand(time(NULL));
 	reset_game();
