@@ -1,9 +1,22 @@
-SOURCES := main.c tetris.c tetris.h
-tetris:
-	cc $(SOURCES) $(CFLAGS) -lncurses -o $@ 
+.POSIX:
+CC = cc
+CFLAGS = -Werror -Wall
+LDLIBS = -lpthread -lm -ldl -lncurses
+OBJECTS = tetris.o miniaudio.o
+CHECK_FILES = main.c tetris.c tetris.h
 
+ifeq ($(OS),Windows_NT)
+	LDLIBS = ""
+endif
+
+all: tetris
+tetris: main.c $(OBJECTS)
+	$(CC) $(LDFLAGS) main.c $(OBJECTS) $(LDLIBS) -o tetris
+tetris.o: tetris.c tetris.h
+	$(CC) -c $(CFLAGS) tetris.c
+miniaudio.o: extern/miniaudio.c extern/miniaudio.h
+	$(CC) -c $(CFLAGS) extern/miniaudio.c
 clean:
-	rm tetris
-
-check: $(SOURCES)
-	clang-tidy $(SOURCES) -checks=-*,clang-analyzer-*,-clang-analyzer-cplusplus*
+	rm -f tetris $(OBJECTS)
+check: $(CHECK_FILES)
+	clang-tidy $(CHECK_FILES) -checks=-*,clang-analyzer-*,-clang-analyzer-cplusplus*

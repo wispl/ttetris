@@ -822,7 +822,7 @@ game_init()
     windows[PREVIEW] = newwin(NPREVIEW * BOX_H, BOX_W, GRID_Y, GRID_X + GRID_W);
 
 	/* audio and sound initialization */
-	if (ma_decoder_init_file("Tetris.mp3", NULL, &audio_decoder) != MA_SUCCESS)
+	if (ma_decoder_init_file("assets/tetris.mp3", NULL, &audio_decoder) != MA_SUCCESS)
 		return -1;
 
     ma_data_source_set_looping(&audio_decoder, MA_TRUE);
@@ -855,10 +855,8 @@ game_init()
 void
 game_destroy()
 {
-	if (game.running) {
-		ma_device_uninit(&audio_device);
-		ma_decoder_uninit(&audio_decoder);
-		wclear(stdscr);
-		endwin();
-	}
+	ma_device_uninit(&audio_device);
+	ma_decoder_uninit(&audio_decoder);
+	wclear(stdscr);
+	endwin();
 }
