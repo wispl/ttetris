@@ -1,12 +1,13 @@
 .POSIX:
 CC = cc
-CFLAGS = -Werror -Wall
+CFLAGS = -Wextra -Wall -Wpedantic -Wdouble-promotion
 LDLIBS = -lpthread -lm -ldl -lncurses
 OBJECTS = tetris.o miniaudio.o
 CHECK_FILES = main.c tetris.c tetris.h
 
 ifeq ($(OS),Windows_NT)
-	LDLIBS = ""
+	LDLIBS = -lncurses
+	LDFLAGS = -DNCURSES_STATIC -static
 endif
 
 all: tetris
@@ -19,4 +20,4 @@ miniaudio.o: extern/miniaudio.c extern/miniaudio.h
 clean:
 	rm -f tetris $(OBJECTS)
 check: $(CHECK_FILES)
-	clang-tidy $(CHECK_FILES) -checks=-*,clang-analyzer-*,-clang-analyzer-cplusplus*
+	clang-tidy $(CHECK_FILES)

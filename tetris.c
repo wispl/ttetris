@@ -13,23 +13,18 @@
 #include <ncurses/ncurses.h>
 #endif
 
-#define BORDER_WIDTH  1
 #define CELL_WIDTH    2
+#define BORDER_OFFSET 1
+#define BORDERS       2
 
-/* Grid, MAX_ROW & MAX_COL are for arrays*/
-#define MAX_ROW       22
-#define MAX_COL       10
-#define GRID_X        (COLS / 2) - (MAX_ROW / 2)
-#define GRID_Y        (LINES - MAX_ROW) / 2
-#define GRID_H        (MAX_ROW - 2) + 2 * BORDER_WIDTH
-#define GRID_W        MAX_COL * CELL_WIDTH + BORDER_WIDTH * 2
-#define EXTRA_ROWS    2
-/* A box with enough space to fit any tetrimino */
-#define BOX_W         4 * CELL_WIDTH + 2 * BORDER_WIDTH
-#define BOX_H         3 + 2 * BORDER_WIDTH
-/* Stats section */
-#define STATS_W       20
-#define STATS_H       8
+/* grid placement and dimensions, other UIs are based on these */
+#define HIDDEN_ROWS   2
+#define GRID_ROWS     (20 + HIDDEN_ROWS)
+#define GRID_COLS     10
+#define GRID_H        (GRID_ROWS - HIDDEN_ROWS + BORDERS)
+#define GRID_W        ((GRID_COLS * CELL_WIDTH) + BORDERS)
+#define GRID_X        ((COLS  - GRID_W) / 2)
+#define GRID_Y        ((LINES - GRID_H) / 2)
 
 /* game configuration */
 #define BAGSIZE     	    7
@@ -84,7 +79,7 @@ struct game_state {
 	struct timespec lock_delay; /* start of lock delay for autoplacement */
 	int move_reset; 	    /* piece_lock can be reset upto 15 times */
 
-	enum tetrimino_type grid[MAX_ROW][MAX_COL];
+	enum tetrimino_type grid[GRID_ROWS][GRID_COLS];
 	struct tetrimino {
 		enum tetrimino_type type;
 		int rotation;
@@ -256,8 +251,8 @@ render_tetrimino(WINDOW *w, enum tetrimino_type type, int y_offset)
 {
 	for (int n = 0; n < 4; ++n) {
 		const int *offset = ROTATIONS[type][0][n];
-		int x = BORDER_WIDTH + (offset[0] * 2);
-		int y = BORDER_WIDTH + offset[1] + y_offset;
+		int x = BORDER_OFFSET + (offset[0] * CELL_WIDTH);
+		int y = BORDER_OFFSET + offset[1] + y_offset;
 		int c = block_chtype(type);
 
 		mvwaddch(w, y, x, c);
@@ -270,29 +265,28 @@ static void
 render_active_tetrimino(bool ghost)
 {
 	for (int n = 0; n < 4; ++n) {
-		int x = 2 * block_x(game.tetrimino.rotation, n);
+		int x = block_x(game.tetrimino.rotation, n) * CELL_WIDTH;
 		int y = block_y(game.tetrimino.rotation, n);
-		/* use game.ghost_y instead for ghost pieces*/
+		/* use game.ghost_y instead for ghost pieces */
 		y += (ghost * (game.tetrimino.ghost_y - game.tetrimino.y));
 		chtype c = ghost ? '/' : block_chtype(game.tetrimino.type);
 
-		if (y < EXTRA_ROWS)
-			continue;
-
-		int row = BORDER_WIDTH + y - EXTRA_ROWS;
-		int col = BORDER_WIDTH + x;
-		mvwaddch(windows[GRID], row, col, c);
-		waddch(windows[GRID], c);
+		if (y >= HIDDEN_ROWS) {
+			int row = BORDER_OFFSET + y - HIDDEN_ROWS;
+			int col = BORDER_OFFSET + x;
+			mvwaddch(windows[GRID], row, col, c);
+			waddch(windows[GRID], c);
+		}
 	}
 }
 
 static void
 render_grid()
 {
-	for (int y = EXTRA_ROWS; y < MAX_ROW; ++y) {
-		int row = BORDER_WIDTH + y - EXTRA_ROWS;
-		wmove(windows[GRID], row, BORDER_WIDTH);
-		for (int x = 0; x < MAX_COL; ++x) {
+	for (int y = HIDDEN_ROWS; y < GRID_ROWS; ++y) {
+		int row = BORDER_OFFSET + y - HIDDEN_ROWS;
+		wmove(windows[GRID], row, BORDER_OFFSET);
+		for (int x = 0; x < GRID_COLS; ++x) {
 			chtype c = block_chtype(game.grid[y][x]);
 			waddch(windows[GRID], c);
 			waddch(windows[GRID], c);
@@ -376,13 +370,13 @@ render_gameover()
 static inline bool
 block_valid(int x, int y)
 {
-	return x >= 0 && x < MAX_COL && y >= 0 && y < MAX_ROW && game.grid[y][x] == EMPTY;
+	return x >= 0 && x < GRID_COLS && y >= 0 && y < GRID_ROWS && game.grid[y][x] == EMPTY;
 }
 
 static bool
 row_filled(int row)
 {
-	for (int n = 0; n < MAX_COL; ++n) {
+	for (int n = 0; n < GRID_COLS; ++n) {
 		if (game.grid[row][n] == EMPTY)
 			return false;
 	}
@@ -392,7 +386,7 @@ row_filled(int row)
 static bool
 row_empty(int row)
 {
-	for (int n = 0; n < MAX_COL; ++n) {
+	for (int n = 0; n < GRID_COLS; ++n) {
 		if (game.grid[row][n] != EMPTY)
 			return false;
 	}
@@ -402,7 +396,7 @@ row_empty(int row)
 static void
 move_row(int from, int to)
 {
-	for (int n = 0; n < MAX_COL; ++n) {
+	for (int n = 0; n < GRID_COLS; ++n) {
 		game.grid[to][n] = game.grid[from][n];
 		game.grid[from][n] = EMPTY;
 	}
@@ -411,7 +405,7 @@ move_row(int from, int to)
 static void
 clear_row(int row)
 {
-	for (int n = 0; n < MAX_COL; ++n)
+	for (int n = 0; n < GRID_COLS; ++n)
 		game.grid[row][n] = EMPTY;
 }
 
@@ -511,7 +505,7 @@ update_score(int lines)
 	/* combo bonuses */
 	score += 50 * (game.combo < 0 ? 0 : game.combo);
 	/* perfect line clear bonuses are added to regular clear bonuses */
-	if (row_empty(MAX_ROW - 1))
+	if (row_empty(GRID_ROWS - 1))
 		score += (back_to_back) ? 3200 : ACTION_POINTS[PERFECT_SINGLE + lines];
 
 	game.score += (int) (score * game.level);
@@ -576,7 +570,7 @@ place_tetrimino()
 	}
 
 	game.has_held = false;
-	spawn_tetrimino(next_tetrimino(game));
+	spawn_tetrimino(next_tetrimino());
 }
 
 /*** Game controls ***/
@@ -626,7 +620,7 @@ controls_rotate(int rotate_by)
 		update_ghost();
 
 		if (game.tetrimino.type == T)
-		check_tspin(kick_test);
+			check_tspin(kick_test);
 
 		if (game.piece_lock && ++game.move_reset < 15)
 			game.piece_lock = false;
@@ -639,7 +633,7 @@ controls_harddrop()
 	/* add two points for each cell harddropped */
 	game.score += (game.tetrimino.ghost_y - game.tetrimino.y) * 2;
 	game.tetrimino.y = game.tetrimino.ghost_y;
-	place_tetrimino(game);
+	place_tetrimino();
 }
 
 static void
@@ -655,7 +649,7 @@ controls_hold()
 	if (hold != EMPTY)
 		spawn_tetrimino(hold);
 	else
-		spawn_tetrimino(next_tetrimino(game));
+		spawn_tetrimino(next_tetrimino());
 }
 
 /* reset game to its initial state and prepare for a new game */
@@ -675,8 +669,8 @@ reset_game()
 	game.combo = -1;
 	game.high_score = highscore;
 
-	for (int y = 0; y < MAX_ROW; ++y) {
-		for (int x = 0; x < MAX_COL; ++x)
+	for (int y = 0; y < GRID_ROWS; ++y) {
+		for (int x = 0; x < GRID_COLS; ++x)
 			game.grid[y][x] = EMPTY;
 	}
 
@@ -826,15 +820,21 @@ game_init()
 	init_pair(T + 2, COLOR_MAGENTA, COLOR_BLACK);
 	init_pair(Z + 2, COLOR_RED, COLOR_BLACK);
 
+	/* Enough space to fit any tetrimino with borders */
+	int box_w   = (4 * CELL_WIDTH) + BORDERS;
+	int box_h   = 3 + BORDERS;
+	/* don't multiply the borders width, add it afterwards */
+	int preview_h = (NPREVIEW * (box_h - BORDERS)) + BORDERS;
+
 	windows[GRID]    = newwin(GRID_H, GRID_W, GRID_Y, GRID_X);
-	windows[HOLD]    = newwin(BOX_H, BOX_W, GRID_Y, GRID_X - BOX_W - 5);
-	windows[STATS]   = newwin(STATS_H, STATS_W, LINES / 2, GRID_X - STATS_W);
+	windows[HOLD]    = newwin(box_h, box_w, GRID_Y, GRID_X - box_w);
+	windows[STATS]   = newwin(8, 20, LINES / 2, GRID_X - 20);
 	windows[ACTION]  = newwin(2, GRID_W, GRID_Y + GRID_H, GRID_X);
-	windows[PREVIEW] = newwin(NPREVIEW * BOX_H, BOX_W, GRID_Y, GRID_X + GRID_W);
+	windows[PREVIEW] = newwin(preview_h, box_w, GRID_Y, GRID_X + GRID_W);
 
 	/* audio and sound initialization */
 	if (ma_decoder_init_file("assets/tetris.mp3", NULL, &audio_decoder) != MA_SUCCESS)
-	return -1;
+		return -1;
 
 	ma_data_source_set_looping(&audio_decoder, MA_TRUE);
 
