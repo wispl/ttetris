@@ -98,7 +98,6 @@ struct game_state {
 static WINDOW* windows[NWINDOWS]; /* ncurses windows */
 static struct game_state game = {0};
 static ma_decoder audio_decoder;
-static ma_device_config audio_device_config;
 static ma_device audio_device;
 
 /* rotation mapping, indexed by [type][rotation][block][x or y] */
@@ -560,12 +559,11 @@ place_tetrimino()
 	int lines = (clear_begin != -1) ? update_rows(clear_begin) : 0;
 	update_score(lines);
 
-	/* check for overflow only after lines have been cleared */ 
+	/* check for overflow only after lines have been cleared */
 	if (!row_empty(1)) {
 		game.has_lost = true;
-		game.high_score = (game.score > game.high_score)
-				? game.score
-				: game.high_score;
+		if (game.score > game.high_score)
+			game.high_score = game.score;
 		return;
 	}
 
@@ -697,35 +695,16 @@ game_input()
 		return;
 	}
 	switch (key) {
-	case KEY_LEFT:
-		controls_move(-1, 0);
-		break;
-	case KEY_RIGHT:
-		controls_move(1, 0);
-		break;
-	case KEY_UP:
-		controls_move(0, 1);
-		break;
-	case KEY_DOWN:
-		controls_harddrop();
-		break;
-	case 'x':
-		controls_rotate(1);
-		break;
-	case 'z':
-		controls_rotate(-1);
-		break;
-	case 'c':
-		controls_hold();
-		break;
-	case 'r':
-		reset_game();
-		break;
-	case 'q':
-		game.running = false;
-		break;
-	default:
-		break;
+	case KEY_LEFT: 	controls_move(-1, 0); 	break;
+	case KEY_RIGHT: controls_move(1, 0); 	break;
+	case KEY_UP: 	controls_move(0, 1); 	break;
+	case KEY_DOWN: 	controls_harddrop(); 	break;
+	case 'x': 	controls_rotate(1); 	break;
+	case 'z': 	controls_rotate(-1); 	break;
+	case 'c': 	controls_hold(); 	break;
+	case 'r': 	reset_game(); 		break;
+	case 'q': 	game.running = false; 	break;
+	default: break;
 	}
 }
 
@@ -838,16 +817,17 @@ game_init()
 
 	ma_data_source_set_looping(&audio_decoder, MA_TRUE);
 
-	audio_device_config = ma_device_config_init(ma_device_type_playback);
-	audio_device_config.noPreSilencedOutputBuffer = true;
-	audio_device_config.playback.format   = audio_decoder.outputFormat;
-	audio_device_config.playback.channels = audio_decoder.outputChannels;
-	audio_device_config.sampleRate        = audio_decoder.outputSampleRate;
-	audio_device_config.dataCallback      = data_callback;
-	audio_device_config.pUserData         = &audio_decoder;
-	audio_device_config.noClip            = true;
+	ma_device_config device_config;
+	device_config = ma_device_config_init(ma_device_type_playback);
+	device_config.noPreSilencedOutputBuffer = true;
+	device_config.playback.format   = audio_decoder.outputFormat;
+	device_config.playback.channels = audio_decoder.outputChannels;
+	device_config.sampleRate        = audio_decoder.outputSampleRate;
+	device_config.dataCallback      = data_callback;
+	device_config.pUserData         = &audio_decoder;
+	device_config.noClip            = true;
 
-	if (ma_device_init(NULL, &audio_device_config, &audio_device) != MA_SUCCESS) {
+	if (ma_device_init(NULL, &device_config, &audio_device) != MA_SUCCESS) {
 		ma_decoder_uninit(&audio_decoder);
 		return -1;
 	}
