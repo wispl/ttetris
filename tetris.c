@@ -241,7 +241,7 @@ shuffle_bag(enum tetrimino_type bag[BAGSIZE])
 static inline chtype
 block_chtype(enum tetrimino_type type)
 {
-	return ' ' | A_REVERSE | COLOR_PAIR(type + 2);
+	return ' ' | COLOR_PAIR(type + 1);
 }
 
 /* renders a tetrimino of type with offset y, this renders *any* tetrimino */
@@ -787,17 +787,18 @@ game_init()
 	keypad(stdscr, TRUE);
 	nodelay(stdscr, TRUE);
 
-	/* TODO: add check if terminal supports color */
-	start_color();
-	/* add 2 because color pairs start at 0 and the enums start from -1 */
-	init_pair(EMPTY + 2, COLOR_BLACK, COLOR_BLACK);
-	init_pair(I + 2, COLOR_CYAN, COLOR_BLACK);
-	init_pair(J + 2, COLOR_BLUE, COLOR_BLACK);
-	init_pair(L + 2, COLOR_WHITE, COLOR_BLACK);
-	init_pair(O + 2, COLOR_YELLOW, COLOR_BLACK);
-	init_pair(S + 2, COLOR_GREEN, COLOR_BLACK);
-	init_pair(T + 2, COLOR_MAGENTA, COLOR_BLACK);
-	init_pair(Z + 2, COLOR_RED, COLOR_BLACK);
+	if (has_colors()) {
+		start_color();
+		use_default_colors();
+		/* add 1 because color pairs start at 0 */
+		init_pair(I + 1, -1, COLOR_CYAN);
+		init_pair(J + 1, -1, COLOR_BLUE);
+		init_pair(L + 1, -1, COLOR_WHITE);
+		init_pair(O + 1, -1, COLOR_YELLOW);
+		init_pair(S + 1, -1, COLOR_GREEN);
+		init_pair(T + 1, -1, COLOR_MAGENTA);
+		init_pair(Z + 1, -1, COLOR_RED);
+	} /* no colors then */
 
 	/* Enough space to fit any tetrimino with borders */
 	int box_w   = (4 * CELL_WIDTH) + BORDERS;
