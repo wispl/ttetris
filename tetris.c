@@ -9,8 +9,12 @@
 #include <time.h>
 
 #ifdef __linux__
+#include <unistd.h>
+#include <libgen.h>
 #include <ncurses.h>
 #elif _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
 #include <ncurses/ncurses.h>
 #endif
 
@@ -32,6 +36,8 @@
 #define NPREVIEW   	    5
 #define LOCK_DELAY  	    0.5F
 #define ACTION_TEXT_EXPIRE  2.0F
+
+#define szstr(str) str, sizeof(str)
 
 /* Action mapping of (enum, text, and points) */
 #define FOR_EACH_ACTION(X) \
@@ -188,6 +194,27 @@ static int high_score = 0;
 static ma_engine engine;
 static ma_resource_manager resource_manager;
 static ma_sound bgm, sfx_harddrop;
+
+/* TODO: thoroughly check this function */
+static int
+get_binarydir(char* out, size_t len)
+{
+#ifdef __linux__
+	int bytes = readlink("/proc/self/exe", out, len);
+	if (!bytes || bytes >= len)
+		return -1;
+	out[bytes] = '\0';
+	dirname(out);
+#elif _WIN32
+	/* TODO: test on Windows, also remove null terminator */
+	int bytes = GetModuleFileName(NULL, out, len);
+	if (!bytes || bytes >= len)
+		return -1;
+	if (!PathCchRemoveFileSpec(out, len))
+		return -1;
+#endif
+	return strlen(out);
+}
 
 /* Coordinates for block n with given rotation for the current tetromino */
 static inline int
@@ -879,10 +906,14 @@ game_init()
 	if (result != MA_SUCCESS) return -1;
 
 	ma_uint32 flags = MA_SOUND_FLAG_NO_PITCH | MA_SOUND_FLAG_DECODE;
-	ma_sound_init_from_file(&engine, "assets/bgm.ogg",
-			 	MA_SOUND_FLAG_STREAM, NULL, NULL, &bgm);
-	ma_sound_init_from_file(&engine, "assets/harddrop.ogg",
-			 	flags, NULL, NULL, &sfx_harddrop);
+
+	char path[256];
+	int len = get_binarydir(path, sizeof(path));
+	memcpy(path + len, szstr("/assets/bgm.ogg"));
+	ma_sound_init_from_file(&engine, path, MA_SOUND_FLAG_STREAM, NULL, NULL, &bgm);
+	memcpy(path + len, szstr("/assets/harddrop.ogg"));
+	ma_sound_init_from_file(&engine, path, flags, NULL, NULL, &sfx_harddrop);
+
 	ma_sound_start(&bgm);
 	ma_sound_set_looping(&bgm, true);
 
