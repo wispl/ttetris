@@ -63,46 +63,6 @@ enum window_type    { GRID, PREVIEW, HOLD, STATS, ACTION, NWINDOWS };
 static const int ACTION_POINTS[] = { FOR_EACH_ACTION(GENERATE_POINTS) };
 static const char* ACTION_TEXT[] = { FOR_EACH_ACTION(GENERATE_TEXT) };
 
-struct game_state {
-	bool running, has_lost;
-
-	int score, high_score;
-	int level, lines_cleared; /* new level every 10 line clears */
-	int combo;                /* consecutive clears counter */
-	bool back_to_back;        /* difficult line clear bonuses */
-	enum action_type tspin;   /* tspin bonuses: NONE, MINI_TSPIN or TSPIN */
-
-	float accumulator;	      /* accumulated delta times */
-	struct timespec time_prev;    /* previous frame for delta time*/
-	struct timespec action_start; /* use to expire the action text */
-
-	bool piece_lock;            /* autoplacement of piece due to gravity */
-	struct timespec lock_delay; /* start of lock delay for autoplacement */
-	int move_reset; 	    /* piece_lock can be reset upto 15 times */
-
-	enum tetromino_type grid[GRID_ROWS][GRID_COLS];
-	struct tetromino {
-		enum tetromino_type type;
-		int rotation;
-		int x, y;
-		int ghost_y; /* preview of the tetromino at the bottom */
-	} tetromino;         /* currently held tetromino */
-
-	int bag_index;
-	enum tetromino_type bag[BAGSIZE]; 	  /* preview and queue */
-	enum tetromino_type shuffle_bag[BAGSIZE]; /* 7-bag shuffle system */
-
-	enum tetromino_type hold; /* held piece */
-	bool has_held;            /* hold could only be used once per piece */
-};
-
-static WINDOW* windows[NWINDOWS]; /* ncurses windows */
-static struct game_state game = {0};
-
-static ma_engine engine;
-static ma_resource_manager resource_manager;
-static ma_sound bgm, sfx_harddrop;
-
 /* rotation mapping, indexed by [type][rotation][block][x or y] */
 static const int ROTATIONS[7][4][4][2] = {
 	[I] = {{{0, 1}, {1, 1}, {2, 1}, {3, 1}},
@@ -187,6 +147,47 @@ static const float gravity_table[20] = {
 	0.13473F, 0.09388F, 0.06415F, 0.04298F, 0.02822F, 0.01815F, 0.01144F,
 	0.00706F, 0.00426F, 0.00252F, 0.00146F, 0.00082F, 0.00046F,
 };
+
+struct game_state {
+	bool running, has_lost;
+
+	int score;
+	int level, lines_cleared; /* new level every 10 line clears */
+	int combo;                /* consecutive clears counter */
+	bool back_to_back;        /* difficult line clear bonuses */
+	enum action_type tspin;   /* tspin bonuses: NONE, MINI_TSPIN or TSPIN */
+
+	float accumulator;	      /* accumulated delta times */
+	struct timespec time_prev;    /* previous frame for delta time*/
+	struct timespec action_start; /* use to expire the action text */
+
+	bool piece_lock;            /* autoplacement of piece due to gravity */
+	struct timespec lock_delay; /* start of lock delay for autoplacement */
+	int move_reset; 	    /* piece_lock can be reset upto 15 times */
+
+	enum tetromino_type grid[GRID_ROWS][GRID_COLS];
+	struct tetromino {
+		enum tetromino_type type;
+		int rotation;
+		int x, y;
+		int ghost_y; /* preview of the tetromino at the bottom */
+	} tetromino;         /* currently held tetromino */
+
+	int bag_index;
+	enum tetromino_type bag[BAGSIZE]; 	  /* preview and queue */
+	enum tetromino_type shuffle_bag[BAGSIZE]; /* 7-bag shuffle system */
+
+	enum tetromino_type hold; /* held piece */
+	bool has_held;            /* hold could only be used once per piece */
+};
+
+static WINDOW* windows[NWINDOWS]; /* ncurses windows */
+static struct game_state game = {0};
+static int high_score = 0;
+
+static ma_engine engine;
+static ma_resource_manager resource_manager;
+static ma_sound bgm, sfx_harddrop;
 
 /* Coordinates for block n with given rotation for the current tetromino */
 static inline int
@@ -330,7 +331,7 @@ render_stats()
 	werase(windows[STATS]);
 	wprintw(windows[STATS],
 	 	"Lines: %d\n" "Level: %d\n" "Score: %d\n" "High Score: %d\n" "Combo: %d\n",
-		game.lines_cleared, game.level, game.score, game.high_score, game.combo);
+		game.lines_cleared, game.level, game.score, high_score, game.combo);
 	wrefresh(windows[STATS]);
 }
 
@@ -556,8 +557,8 @@ place_tetromino()
 	/* check for overflow only after lines have been cleared */
 	if (!row_empty(1)) {
 		game.has_lost = true;
-		if (game.score > game.high_score)
-			game.high_score = game.score;
+		if (game.score > high_score)
+			high_score = game.score;
 		return;
 	}
 
@@ -649,9 +650,7 @@ controls_hold()
 static void
 game_set_to_default()
 {
-	int highscore = game.high_score;
 	game = (struct game_state) {0};
-	game.high_score = highscore;
 	game.hold = EMPTY;
 	game.tspin = NONE;
 	game.level = 1;
