@@ -329,16 +329,8 @@ render_stats()
 {
 	werase(windows[STATS]);
 	wprintw(windows[STATS],
-			"Lines: %d\n"
-			"Level: %d\n"
-			"Score: %d\n"
-			"High Score: %d\n"
-			"Combo: %d\n",
-			game.lines_cleared,
-			game.level,
-			game.score,
-			game.high_score,
-			game.combo);
+	 	"Lines: %d\n" "Level: %d\n" "Score: %d\n" "High Score: %d\n" "Combo: %d\n",
+		game.lines_cleared, game.level, game.score, game.high_score, game.combo);
 	wrefresh(windows[STATS]);
 }
 
@@ -350,11 +342,8 @@ render_announce(enum action_type type, bool back_to_back)
 	werase(windows[ACTION]);
 	int pad = (GRID_W - strlen(ACTION_TEXT[type])) / 2;
 	wprintw(windows[ACTION], "%*s%s", pad, "", ACTION_TEXT[type]);
-	mvwprintw(windows[ACTION],
-	   	  1,
-	   	  5,
-	   	  "%s",
-	   	  (back_to_back) ? "BACK TO BACK" : "");
+	wmove(windows[ACTION], 1, 5);
+	wprintw(windows[ACTION], "%s", (back_to_back) ? "BACK TO BACK" : "");
 	wrefresh(windows[ACTION]);
 }
 
@@ -372,7 +361,9 @@ render_gameover()
 static inline bool
 block_valid(int x, int y)
 {
-	return x >= 0 && x < GRID_COLS && y >= 0 && y < GRID_ROWS && game.grid[y][x] == EMPTY;
+	return x >= 0 && x < GRID_COLS
+	    && y >= 0 && y < GRID_ROWS
+	    && game.grid[y][x] == EMPTY;
 }
 
 static bool
@@ -647,47 +638,41 @@ controls_hold()
 		return;
 
 	game.has_held = true;
-	enum tetromino_type hold = game.hold;
+	enum tetromino_type current = game.hold;
+	if (current == EMPTY)
+		current = next_tetromino();
 	game.hold = game.tetromino.type;
 
-	if (hold != EMPTY)
-		spawn_tetromino(hold);
-	else
-		spawn_tetromino(next_tetromino());
+	spawn_tetromino(current);
 }
 
-/* reset game to its initial state and prepare for a new game */
 static void
-reset_game()
+game_set_to_default()
 {
 	int highscore = game.high_score;
 	game = (struct game_state) {0};
-	game.running = true;
-	game.has_held = false;
-	game.has_lost = false;
-	game.back_to_back = false;
-	game.piece_lock = false;
+	game.high_score = highscore;
 	game.hold = EMPTY;
 	game.tspin = NONE;
 	game.level = 1;
 	game.combo = -1;
-	game.high_score = highscore;
 
 	for (int y = 0; y < GRID_ROWS; ++y) {
 		for (int x = 0; x < GRID_COLS; ++x)
 			game.grid[y][x] = EMPTY;
 	}
 
-	enum tetromino_type initial_bag[BAGSIZE] = {I, J, L, O, S, T, Z};
+	enum tetromino_type initial_bag[BAGSIZE] = { I, J, L, O, S, T, Z };
 	memcpy(game.bag, initial_bag, sizeof(initial_bag));
 	memcpy(game.shuffle_bag, initial_bag, sizeof(initial_bag));
-
 	shuffle_bag(game.bag);
 	shuffle_bag(game.shuffle_bag);
 
-	/* set previous time frame to prevent instant gravity on first frame */
+	/* set previous time frame to prevent instant gravity upon restart */
 	clock_gettime(CLOCK_MONOTONIC, &game.time_prev);
 	spawn_tetromino(next_tetromino());
+
+	game.running = true;
 }
 
 /*** Game loop ***/
@@ -697,9 +682,10 @@ game_input()
 {
 	int key = getch();
 	if (game.has_lost && key == 'r') {
-		reset_game();
+		game_set_to_default();
 		return;
 	}
+
 	switch (key) {
 	case KEY_LEFT: 	controls_move(-1, 0); 	break;
 	case KEY_RIGHT: controls_move(1, 0); 	break;
@@ -708,7 +694,7 @@ game_input()
 	case 'x': 	controls_rotate(1); 	break;
 	case 'z': 	controls_rotate(-1); 	break;
 	case 'c': 	controls_hold(); 	break;
-	case 'r': 	reset_game(); 		break;
+	case 'r': 	game_set_to_default(); 	break;
 	case 'q': 	game.running = false; 	break;
 	default: break;
 	}
@@ -723,7 +709,7 @@ game_update()
 	game.accumulator += diff_timespec(&time_now, &game.time_prev);
 	game.time_prev = time_now;
 
-	/* check if tetromino can be moved down by gravity */
+	/* do gravity, otherwise start autoplacement */
 	if (tetromino_valid(game.tetromino.rotation, 0, 1)) {
 		int i = game.level > 20 ? 19 : game.level - 1;
 		if (game.accumulator > gravity_table[i]) {
@@ -731,7 +717,6 @@ game_update()
 			game.tetromino.y += 1;
 		}
 	} else {
-		/* start autoplacement */
 		if (!game.piece_lock) {
 			game.piece_lock = true;
 			game.lock_delay = time_now;
@@ -902,7 +887,7 @@ game_init()
 	ma_sound_set_looping(&bgm, true);
 
 	srand(time(NULL));
-	reset_game();
+	game_set_to_default();
 	return 1;
 }
 
