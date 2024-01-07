@@ -4,11 +4,10 @@ Tetris in the terminal
 
 ### Features
 
-* Tetris, in the terminal
 * SRS rotation
 * Holding
 * Previews
-* Music
+* Music and Sound effects
 
 #### Todo
 
@@ -32,10 +31,12 @@ make
 #### Dependencies
 
 ncurses
+vorbis (vorbisfile)
 miniaudio (vendored)
 
-### Credits
+### Credits and resources
 
-* [nullpomino](https://github.com/nullpomino/nullpomino) for the rotation and kicktable data
-* [tetris fandom](https://tetris.fandom.com/wiki/Tetris_Worlds) for gravity leveling
-* [tetris wiki](https://tetris.wiki/Tetris_Guideline) for the guidelines
+* music and sound effects: [tetra_legends](https://github.com/doktorocelot/tetralegends)
+* rotation & kicktable, and inspiration: [nullpomino](https://github.com/nullpomino/nullpomino)
+* gravity: [tetris fandom](https://tetris.fandom.com/wiki/Tetris_Worlds) for gravity leveling
+* guidelines: [tetris wiki](https://tetris.wiki/Tetris_Guideline)

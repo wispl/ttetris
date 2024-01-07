@@ -1,5 +1,6 @@
 #include "tetris.h"
 #include "extern/miniaudio.h"
+#include "extern/miniaudio_libvorbis.h"
 
 #include <assert.h>
 #include <stdbool.h>
@@ -97,8 +98,10 @@ struct game_state {
 
 static WINDOW* windows[NWINDOWS]; /* ncurses windows */
 static struct game_state game = {0};
-static ma_decoder audio_decoder;
-static ma_device audio_device;
+
+static ma_engine engine;
+static ma_resource_manager resource_manager;
+static ma_sound bgm, sfx_harddrop;
 
 /* rotation mapping, indexed by [type][rotation][block][x or y] */
 static const int ROTATIONS[7][4][4][2] = {
@@ -632,6 +635,9 @@ controls_harddrop()
 	game.score += (game.tetromino.ghost_y - game.tetromino.y) * 2;
 	game.tetromino.y = game.tetromino.ghost_y;
 	place_tetromino();
+
+	ma_sound_start(&sfx_harddrop);
+	ma_sound_seek_to_pcm_frame(&sfx_harddrop, 0);
 }
 
 static void
@@ -761,16 +767,63 @@ game_running()
 	return game.running;
 }
 
-/* callback needed for miniaudio */
-static void
-data_callback(ma_device* device, void* output, const void* input, ma_uint32 frame)
+static ma_result
+init_libvorbis(void* pUserData, ma_read_proc onRead, ma_seek_proc onSeek,
+	       ma_tell_proc onTell, void* pReadSeekTellUserData,
+	       const ma_decoding_backend_config* pConfig,
+	       const ma_allocation_callbacks* pAllocationCallbacks,
+	       ma_data_source** ppBackend)
 {
-	ma_decoder* decoder = device->pUserData;
-	if (decoder == NULL)
-		return;
-	
-	ma_data_source_read_pcm_frames(decoder, output, frame, NULL);
-	(void) input;
+    ma_result result;
+    ma_libvorbis* pVorbis;
+    (void)pUserData;
+
+    pVorbis = (ma_libvorbis*)ma_malloc(sizeof(*pVorbis), pAllocationCallbacks);
+    if (pVorbis == NULL) return MA_OUT_OF_MEMORY;
+
+    result = ma_libvorbis_init(onRead, onSeek, onTell, pReadSeekTellUserData,
+			       pConfig, pAllocationCallbacks, pVorbis);
+    if (result != MA_SUCCESS) {
+        ma_free(pVorbis, pAllocationCallbacks);
+        return result;
+    }
+
+    *ppBackend = pVorbis;
+    return MA_SUCCESS;
+}
+
+static ma_result
+init_file_libvorbis(void* pUserData, const char* pFilePath, const
+		    ma_decoding_backend_config* pConfig,
+		    const ma_allocation_callbacks* pAllocationCallbacks,
+		    ma_data_source** ppBackend)
+{
+    ma_result result;
+    ma_libvorbis* pVorbis;
+    (void)pUserData;
+
+    pVorbis = (ma_libvorbis*)ma_malloc(sizeof(*pVorbis), pAllocationCallbacks);
+    if (pVorbis == NULL) return MA_OUT_OF_MEMORY;
+
+    result = ma_libvorbis_init_file(pFilePath, pConfig,
+				    pAllocationCallbacks, pVorbis);
+    if (result != MA_SUCCESS) {
+        ma_free(pVorbis, pAllocationCallbacks);
+        return result;
+    }
+
+    *ppBackend = pVorbis;
+    return MA_SUCCESS;
+}
+
+static void
+uninit_libvorbis(void* pUserData, ma_data_source* pBackend,
+		 const ma_allocation_callbacks* pAllocationCallbacks)
+{
+    (void)pUserData;
+    ma_libvorbis* pVorbis = (ma_libvorbis*)pBackend;
+    ma_libvorbis_uninit(pVorbis, pAllocationCallbacks);
+    ma_free(pVorbis, pAllocationCallbacks);
 }
 
 int
@@ -813,31 +866,36 @@ game_init()
 	windows[PREVIEW] = newwin(preview_h, box_w, GRID_Y, GRID_X + GRID_W);
 
 	/* audio and sound initialization */
-	if (ma_decoder_init_file("assets/tetris.mp3", NULL, &audio_decoder) != MA_SUCCESS)
-		return -1;
+	ma_result result;
 
-	ma_data_source_set_looping(&audio_decoder, MA_TRUE);
+	ma_decoding_backend_vtable vorbis_vtable = {
+		init_libvorbis,
+		init_file_libvorbis,
+		NULL, /* onInitFileW() */
+		NULL, /* onInitMemory() */
+		uninit_libvorbis
+	};
+	ma_decoding_backend_vtable* vtable[] = { &vorbis_vtable };
 
-	ma_device_config device_config;
-	device_config = ma_device_config_init(ma_device_type_playback);
-	device_config.noPreSilencedOutputBuffer = true;
-	device_config.playback.format   = audio_decoder.outputFormat;
-	device_config.playback.channels = audio_decoder.outputChannels;
-	device_config.sampleRate        = audio_decoder.outputSampleRate;
-	device_config.dataCallback      = data_callback;
-	device_config.pUserData         = &audio_decoder;
-	device_config.noClip            = true;
+	ma_resource_manager_config conf = ma_resource_manager_config_init();
+	conf.ppCustomDecodingBackendVTables = vtable;
+	conf.pCustomDecodingBackendUserData = NULL;
+	conf.customDecodingBackendCount = sizeof(vtable) / sizeof(vtable[0]);
+	result = ma_resource_manager_init(&conf, &resource_manager);
+	if (result != MA_SUCCESS) return -1;
 
-	if (ma_device_init(NULL, &device_config, &audio_device) != MA_SUCCESS) {
-		ma_decoder_uninit(&audio_decoder);
-		return -1;
-	}
+	ma_engine_config engine_conf = ma_engine_config_init();
+	engine_conf.pResourceManager = &resource_manager;
+	result = ma_engine_init(&engine_conf, &engine);
+	if (result != MA_SUCCESS) return -1;
 
-	if (ma_device_start(&audio_device) != MA_SUCCESS) {
-		ma_device_uninit(&audio_device);
-		ma_decoder_uninit(&audio_decoder);
-		return -1;
-	}
+	ma_uint32 flags = MA_SOUND_FLAG_NO_PITCH | MA_SOUND_FLAG_DECODE;
+	ma_sound_init_from_file(&engine, "assets/bgm.ogg",
+			 	MA_SOUND_FLAG_STREAM, NULL, NULL, &bgm);
+	ma_sound_init_from_file(&engine, "assets/harddrop.ogg",
+			 	flags, NULL, NULL, &sfx_harddrop);
+	ma_sound_start(&bgm);
+	ma_sound_set_looping(&bgm, true);
 
 	srand(time(NULL));
 	reset_game();
@@ -847,8 +905,11 @@ game_init()
 void
 game_destroy()
 {
-	ma_device_uninit(&audio_device);
-	ma_decoder_uninit(&audio_decoder);
+	/* TODO: bgm is not freed because of segfault, investigate */
+	ma_sound_uninit(&sfx_harddrop);
+	ma_engine_uninit(&engine);
+	ma_resource_manager_uninit(&resource_manager);
+
 	wclear(stdscr);
 	endwin();
 }
