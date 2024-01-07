@@ -20,4 +20,4 @@ miniaudio.o: extern/miniaudio.c extern/miniaudio.h extern/miniaudio_libvorbis.h
 clean:
 	rm -f tetris $(OBJECTS)
 check: $(CHECK_FILES)
-	clang-tidy $(CHECK_FILES)
+	clang-tidy $(CHECK_FILES) -- $(CFLAGS)

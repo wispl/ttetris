@@ -311,7 +311,7 @@ render_active_tetromino(bool ghost)
 }
 
 static void
-render_grid()
+render_grid(void)
 {
 	for (int y = HIDDEN_ROWS; y < GRID_ROWS; ++y) {
 		int row = BORDER_OFFSET + y - HIDDEN_ROWS;
@@ -331,7 +331,7 @@ render_grid()
 }
 
 static void
-render_preview()
+render_preview(void)
 {
 	werase(windows[PREVIEW]);
 	for (int p = 0; p < NPREVIEW; ++p) {
@@ -344,7 +344,7 @@ render_preview()
 }
 
 static void
-render_hold()
+render_hold(void)
 {
 	werase(windows[HOLD]);
 	render_tetromino(windows[HOLD], game.hold, 0);
@@ -353,7 +353,7 @@ render_hold()
 }
 
 static void
-render_stats()
+render_stats(void)
 {
 	werase(windows[STATS]);
 	wprintw(windows[STATS],
@@ -376,7 +376,7 @@ render_announce(enum action_type type, bool back_to_back)
 }
 
 static void
-render_gameover()
+render_gameover(void)
 {
 	werase(windows[GRID]);
 	mvwprintw(windows[GRID], 5, 5, "You lost!\n   Press R to restart");
@@ -473,7 +473,7 @@ check_tspin(int kick_test)
 
 /* Updates the ghost piece, recalculate when position of piece changes */
 static void
-update_ghost()
+update_ghost(void)
 {
 	int y = 0;
 	while (tetromino_valid(game.tetromino.rotation, 0, y + 1))
@@ -482,7 +482,7 @@ update_ghost()
 }
 
 static enum tetromino_type
-next_tetromino()
+next_tetromino(void)
 {
 	/* replace with a piece from the shuffle bag to allow for previews */
 	enum tetromino_type type = game.bag[game.bag_index];
@@ -568,7 +568,7 @@ update_rows(int row)
 
 /* Place the active tetromino and handle line clears */
 static void
-place_tetromino()
+place_tetromino(void)
 {
 	int clear_begin = -1;
 	for (int n = 0; n < 4; ++n) {
@@ -648,7 +648,7 @@ controls_rotate(int rotate_by)
 }
 
 static void
-controls_harddrop()
+controls_harddrop(void)
 {
 	/* add two points for each cell harddropped */
 	game.score += (game.tetromino.ghost_y - game.tetromino.y) * 2;
@@ -660,7 +660,7 @@ controls_harddrop()
 }
 
 static void
-controls_hold()
+controls_hold(void)
 {
 	if (game.has_held)
 		return;
@@ -675,7 +675,7 @@ controls_hold()
 }
 
 static void
-game_set_to_default()
+game_set_to_default(void)
 {
 	game = (struct game_state) {0};
 	game.hold = EMPTY;
@@ -704,7 +704,7 @@ game_set_to_default()
 /*** Game loop ***/
 
 static void
-game_input()
+game_input(void)
 {
 	int key = getch();
 	if (game.has_lost) {
@@ -728,7 +728,7 @@ game_input()
 }
 
 static void
-game_update()
+game_update(void)
 {
 	struct timespec time_now;
 	clock_gettime(CLOCK_MONOTONIC, &time_now);
@@ -761,7 +761,7 @@ game_update()
 }
 
 static void
-game_render()
+game_render(void)
 {
 	if (game.has_lost) {
 		render_gameover();
@@ -774,7 +774,7 @@ game_render()
 }
 
 void
-game_mainloop()
+game_mainloop(void)
 {
 	while (game.running) {
 		game_input();
@@ -843,7 +843,7 @@ uninit_libvorbis(void* pUserData, ma_data_source* pBackend,
 }
 
 int
-game_init()
+game_init(void)
 {
 	if (game.running)
 		return -1;
@@ -923,7 +923,7 @@ game_init()
 }
 
 void
-game_destroy()
+game_destroy(void)
 {
 	/* TODO: bgm is not freed because of segfault, investigate */
 	ma_sound_uninit(&sfx_harddrop);
