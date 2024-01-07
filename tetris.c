@@ -681,8 +681,9 @@ static void
 game_input()
 {
 	int key = getch();
-	if (game.has_lost && key == 'r') {
-		game_set_to_default();
+	if (game.has_lost) {
+		if (key == 'r')
+			game_set_to_default();
 		return;
 	}
 
