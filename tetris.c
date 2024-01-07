@@ -692,7 +692,7 @@ reset_game()
 
 /*** Game loop ***/
 
-void
+static void
 game_input()
 {
 	int key = getch();
@@ -714,7 +714,7 @@ game_input()
 	}
 }
 
-void
+static void
 game_update()
 {
 	struct timespec time_now;
@@ -748,7 +748,7 @@ game_update()
 	}
 }
 
-void
+static void
 game_render()
 {
 	if (game.has_lost) {
@@ -761,10 +761,14 @@ game_render()
 	}
 }
 
-bool
-game_running()
+void
+game_mainloop()
 {
-	return game.running;
+	while (game.running) {
+		game_input();
+		game_update();
+		game_render();
+	}
 }
 
 static ma_result
