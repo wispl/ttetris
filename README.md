@@ -30,9 +30,9 @@ make
 
 #### Dependencies
 
-ncurses
-vorbis (vorbisfile)
-miniaudio (vendored)
+* ncurses
+* vorbis (vorbisfile)
+* miniaudio (vendored)
 
 ### Credits and resources
 
