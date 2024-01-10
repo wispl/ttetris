@@ -1,6 +1,5 @@
 #include "tetris.h"
 #include "extern/miniaudio.h"
-#include "extern/miniaudio_libvorbis.h"
 
 #include <assert.h>
 #include <stdbool.h>
@@ -192,7 +191,6 @@ static struct game_state game = {0};
 static int high_score = 0;
 
 static ma_engine engine;
-static ma_resource_manager resource_manager;
 static ma_sound bgm, sfx_harddrop;
 
 /* TODO: thoroughly check this function */
@@ -783,65 +781,6 @@ game_mainloop(void)
 	}
 }
 
-static ma_result
-init_libvorbis(void* pUserData, ma_read_proc onRead, ma_seek_proc onSeek,
-	       ma_tell_proc onTell, void* pReadSeekTellUserData,
-	       const ma_decoding_backend_config* pConfig,
-	       const ma_allocation_callbacks* pAllocationCallbacks,
-	       ma_data_source** ppBackend)
-{
-    ma_result result;
-    ma_libvorbis* pVorbis;
-    (void)pUserData;
-
-    pVorbis = (ma_libvorbis*)ma_malloc(sizeof(*pVorbis), pAllocationCallbacks);
-    if (pVorbis == NULL) return MA_OUT_OF_MEMORY;
-
-    result = ma_libvorbis_init(onRead, onSeek, onTell, pReadSeekTellUserData,
-			       pConfig, pAllocationCallbacks, pVorbis);
-    if (result != MA_SUCCESS) {
-        ma_free(pVorbis, pAllocationCallbacks);
-        return result;
-    }
-
-    *ppBackend = pVorbis;
-    return MA_SUCCESS;
-}
-
-static ma_result
-init_file_libvorbis(void* pUserData, const char* pFilePath, const
-		    ma_decoding_backend_config* pConfig,
-		    const ma_allocation_callbacks* pAllocationCallbacks,
-		    ma_data_source** ppBackend)
-{
-    ma_result result;
-    ma_libvorbis* pVorbis;
-    (void)pUserData;
-
-    pVorbis = (ma_libvorbis*)ma_malloc(sizeof(*pVorbis), pAllocationCallbacks);
-    if (pVorbis == NULL) return MA_OUT_OF_MEMORY;
-
-    result = ma_libvorbis_init_file(pFilePath, pConfig,
-				    pAllocationCallbacks, pVorbis);
-    if (result != MA_SUCCESS) {
-        ma_free(pVorbis, pAllocationCallbacks);
-        return result;
-    }
-
-    *ppBackend = pVorbis;
-    return MA_SUCCESS;
-}
-
-static void
-uninit_libvorbis(void* pUserData, ma_data_source* pBackend,
-		 const ma_allocation_callbacks* pAllocationCallbacks)
-{
-    (void)pUserData;
-    ma_libvorbis* pVorbis = (ma_libvorbis*)pBackend;
-    ma_libvorbis_uninit(pVorbis, pAllocationCallbacks);
-    ma_free(pVorbis, pAllocationCallbacks);
-}
-
 int
 game_init(void)
 {
@@ -882,33 +821,13 @@ game_init(void)
 	windows[PREVIEW] = newwin(preview_h, box_w, GRID_Y, GRID_X + GRID_W);
 
 	/* audio and sound initialization */
-	ma_result result;
-
-	ma_decoding_backend_vtable vorbis_vtable = {
-		init_libvorbis,
-		init_file_libvorbis,
-		NULL, /* onInitFileW() */
-		NULL, /* onInitMemory() */
-		uninit_libvorbis
-	};
-	ma_decoding_backend_vtable* vtable[] = { &vorbis_vtable };
-
-	ma_resource_manager_config conf = ma_resource_manager_config_init();
-	conf.ppCustomDecodingBackendVTables = vtable;
-	conf.pCustomDecodingBackendUserData = NULL;
-	conf.customDecodingBackendCount = sizeof(vtable) / sizeof(vtable[0]);
-	result = ma_resource_manager_init(&conf, &resource_manager);
-	if (result != MA_SUCCESS) return -1;
-
-	ma_engine_config engine_conf = ma_engine_config_init();
-	engine_conf.pResourceManager = &resource_manager;
-	result = ma_engine_init(&engine_conf, &engine);
-	if (result != MA_SUCCESS) return -1;
-
-	ma_uint32 flags = MA_SOUND_FLAG_NO_PITCH | MA_SOUND_FLAG_DECODE;
+	if (ma_engine_init(NULL, &engine) != MA_SUCCESS)
+		return -1;
 
 	char path[256];
 	int len = get_binarydir(path, sizeof(path));
+	ma_uint32 flags = MA_SOUND_FLAG_NO_PITCH | MA_SOUND_FLAG_DECODE;
+
 	memcpy(path + len, szstr("/assets/bgm.ogg"));
 	ma_sound_init_from_file(&engine, path, MA_SOUND_FLAG_STREAM, NULL, NULL, &bgm);
 	memcpy(path + len, szstr("/assets/harddrop.ogg"));
@@ -925,10 +844,9 @@ game_init(void)
 void
 game_destroy(void)
 {
-	/* TODO: bgm is not freed because of segfault, investigate */
+	ma_sound_uninit(&bgm);
 	ma_sound_uninit(&sfx_harddrop);
 	ma_engine_uninit(&engine);
-	ma_resource_manager_uninit(&resource_manager);
 
 	wclear(stdscr);
 	endwin();

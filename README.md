@@ -28,11 +28,11 @@ cd ttetris
 make
 ```
 
-#### Dependencies
+#### Dependencies and Libraries
 
 * ncurses
-* vorbis (vorbisfile)
-* miniaudio (vendored)
+* [miniaudio](https://github.com/mackron/miniaudio) (vendored)
+* [stb_vorbis](https://github.com/nothings/stb) (vendored)
 
 ### Credits and resources
 
@@ -40,3 +40,5 @@ make
 * rotation & kicktable, and inspiration: [nullpomino](https://github.com/nullpomino/nullpomino)
 * gravity: [tetris fandom](https://tetris.fandom.com/wiki/Tetris_Worlds) for gravity leveling
 * guidelines: [tetris wiki](https://tetris.wiki/Tetris_Guideline)
+* miniaudio: an excellent, simple, and featureful header library
+* stb_files: providing a sane way to compile features on Windows

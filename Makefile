@@ -1,7 +1,7 @@
 .POSIX:
 CC = cc
 CFLAGS = -Wextra -Wall -Wpedantic -Wdouble-promotion
-LDLIBS = -lpthread -lm -ldl -lncurses -lvorbisfile
+LDLIBS = -lpthread -lm -ldl -lncurses
 OBJECTS = tetris.o miniaudio.o
 CHECK_FILES = main.c tetris.c tetris.h
 
@@ -15,7 +15,7 @@ tetris: main.c $(OBJECTS)
 	$(CC) $(LDFLAGS) main.c $(OBJECTS) $(LDLIBS) -o tetris
 tetris.o: tetris.c tetris.h
 	$(CC) -c $(CFLAGS) tetris.c
-miniaudio.o: extern/miniaudio.c extern/miniaudio.h extern/miniaudio_libvorbis.h
+miniaudio.o: extern/miniaudio.c extern/miniaudio.h
 	$(CC) -c $(CFLAGS) extern/miniaudio.c
 clean:
 	rm -f tetris $(OBJECTS)
