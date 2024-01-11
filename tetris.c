@@ -12,8 +12,8 @@
 #include <libgen.h>
 #include <ncurses.h>
 #elif _WIN32
-#define WIN32_LEAN_AND_MEAN
-#include <Windows.h>
+#include<libloaderapi.h>
+#include <pathcch.h>
 #include <ncurses/ncurses.h>
 #endif
 
@@ -798,14 +798,15 @@ game_init(void)
 	if (has_colors()) {
 		start_color();
 		use_default_colors();
+
 		/* add 1 because color pairs start at 0 */
-		init_pair(I + 1, -1, COLOR_CYAN);
-		init_pair(J + 1, -1, COLOR_BLUE);
-		init_pair(L + 1, -1, COLOR_WHITE);
-		init_pair(O + 1, -1, COLOR_YELLOW);
-		init_pair(S + 1, -1, COLOR_GREEN);
-		init_pair(T + 1, -1, COLOR_MAGENTA);
-		init_pair(Z + 1, -1, COLOR_RED);
+		init_pair(I + 1, COLOR_BLACK, COLOR_CYAN);
+		init_pair(J + 1, COLOR_BLACK, COLOR_BLUE);
+		init_pair(L + 1, COLOR_BLACK, COLOR_WHITE);
+		init_pair(O + 1, COLOR_BLACK, COLOR_YELLOW);
+		init_pair(S + 1, COLOR_BLACK, COLOR_GREEN);
+		init_pair(T + 1, COLOR_BLACK, COLOR_MAGENTA);
+		init_pair(Z + 1, COLOR_BLACK, COLOR_RED);
 	} /* no colors then */
 
 	/* Enough space to fit any tetromino with borders */

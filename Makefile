@@ -6,7 +6,7 @@ OBJECTS = tetris.o miniaudio.o
 CHECK_FILES = main.c tetris.c tetris.h
 
 ifeq ($(OS),Windows_NT)
-	LDLIBS = -lncurses
+	LDLIBS = -lncurses -lPathcch
 	LDFLAGS = -DNCURSES_STATIC -static
 endif
 
