@@ -1,8 +1,8 @@
 # ttetris
 
-![ttetris](https://github.com/user-attachments/assets/87049e7b-f98c-43f3-9597-1950b7b80ea8)
+Tetris in the terminal...
 
-Tetris in the terminal
+![ttetris](https://github.com/user-attachments/assets/87049e7b-f98c-43f3-9597-1950b7b80ea8)
 
 ### Features
 
